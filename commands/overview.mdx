@@ -1,0 +1,166 @@
+---
+title: 'Commands Overview'
+description: 'All TokenStash commands for managing your project stash'
+---
+
+TokenStash provides three core commands to manage your project's knowledge base. Each command helps you capture, organize, and maintain context across sessions.
+
+## Available Commands
+
+<CardGroup cols={3}>
+  <Card title="/stash-scan" icon="magnifying-glass" href="/commands/stash-scan">
+    Scan your repo and build the TokenStash index
+  </Card>
+  <Card title="/stash-save" icon="floppy-disk" href="/commands/stash-save">
+    Save session summary and decisions
+  </Card>
+  <Card title="/stash-clear" icon="trash" href="/commands/stash-clear">
+    Wipe the TokenStash for current project
+  </Card>
+</CardGroup>
+
+## Command Reference
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/stash-scan` | Scans repository and creates file summaries in `.tokenstash/files/` | First-time setup, after major refactors, or when many files changed |
+| `/stash-save` | Saves session decisions, updates architecture, and summarizes edited files | End of work session or after significant changes |
+| `/stash-clear` | Deletes entire `.tokenstash/` directory | When starting fresh or stash is corrupted |
+
+## Common Workflows
+
+### First-Time Setup
+
+When starting with TokenStash on a new project:
+
+```bash
+# 1. Scan the repository to build initial index
+/stash-scan
+
+# 2. Work on your project...
+# 3. Save your session at the end
+/stash-save
+```
+
+### Daily Development
+
+Typical workflow during regular development:
+
+```bash
+# Work on features, make changes...
+# At the end of your session:
+/stash-save
+```
+
+<Note>
+  `/stash-save` automatically updates summaries for files you edited, so you don't need to rescan after every change.
+</Note>
+
+### After Major Refactoring
+
+When you've restructured significant parts of the codebase:
+
+```bash
+# Force rescan to update all file summaries
+/stash-scan --force
+
+# Then save your session
+/stash-save
+```
+
+### Starting Fresh
+
+If you want to rebuild the stash from scratch:
+
+```bash
+# 1. Clear existing stash
+/stash-clear
+
+# 2. Rebuild from scratch
+/stash-scan
+```
+
+## Understanding the .tokenstash Directory
+
+TokenStash creates a `.tokenstash/` directory at your repository root:
+
+```
+.tokenstash/
+├── decisions.md          # Chronological session log
+├── architecture.md       # High-level codebase overview
+└── files/               # Per-file summaries
+    ├── src-index-ts.md
+    ├── src-utils-helper-ts.md
+    └── ...
+```
+
+### decisions.md
+
+Chronological log of what you did and why. Each entry includes:
+- Date and session summary
+- Key decisions made
+- Files changed
+
+### architecture.md
+
+High-level overview maintained by TokenStash:
+- Architecture overview (2-4 sentences)
+- Key components and their roles
+- Notable patterns
+- Tech stack
+
+### files/
+
+One markdown file per source file, with:
+- Purpose (one sentence)
+- Key exports (functions, classes, constants)
+- Notable patterns
+- Last updated date
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Run /stash-save at end of sessions">
+    Get in the habit of running `/stash-save` before closing your editor. This ensures your decisions and changes are captured while fresh in memory.
+  </Accordion>
+
+  <Accordion title="Use /stash-scan --force sparingly">
+    The `--force` flag rewrites all summaries, which is slow. Only use it after major refactors or when you suspect summaries are stale.
+  </Accordion>
+
+  <Accordion title="Review decisions.md periodically">
+    Your `decisions.md` becomes a valuable project journal. Review it to understand project evolution and past decision rationale.
+  </Accordion>
+
+  <Accordion title="Commit .tokenstash/ to version control">
+    Add `.tokenstash/` to your repository so the entire team benefits from shared context and decisions.
+  </Accordion>
+</AccordionGroup>
+
+## Command Flags
+
+### /stash-scan
+
+- `--force` — Rescan and overwrite all existing file summaries (default: skip files with existing summaries)
+
+### /stash-save
+
+No flags. Automatically detects files you worked on and updates their summaries.
+
+### /stash-clear
+
+No flags. Always asks for confirmation before deleting.
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Scan Command" icon="magnifying-glass" href="/commands/stash-scan">
+    Learn how scanning works
+  </Card>
+  <Card title="Save Command" icon="floppy-disk" href="/commands/stash-save">
+    Understand session saves
+  </Card>
+  <Card title="Clear Command" icon="trash" href="/commands/stash-clear">
+    When to wipe your stash
+  </Card>
+</CardGroup>

@@ -1,97 +1,136 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "TokenStash"
+description: "Cache your project context so Claude starts every session already knowing your codebase"
 ---
 
-## Setting up
+<img
+  className="block dark:hidden"
+  src="/logo/light.svg"
+  alt="TokenStash Logo"
+  width="200"
+/>
+<img
+  className="hidden dark:block"
+  src="/logo/dark.svg"
+  alt="TokenStash Logo"
+  width="200"
+/>
 
-Get your documentation site up and running in minutes.
+## What is TokenStash?
+
+TokenStash is a Claude Code plugin that caches project context locally — so Claude starts every session already knowing your codebase. No re-reading files. No re-explaining architecture. Just start coding.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in 2 minutes
+  </Card>
+  <Card
+    title="How It Works"
+    icon="gears"
+    href="/guides/how-it-works"
+  >
+    Understand the stash system
+  </Card>
+  <Card
+    title="Commands"
+    icon="terminal"
+    href="/commands/overview"
+  >
+    Explore all available commands
+  </Card>
+  <Card
+    title="Best Practices"
+    icon="lightbulb"
+    href="/guides/best-practices"
+  >
+    Get the most out of TokenStash
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Automatic Context Loading"
+    icon="bolt"
+  >
+    Your stash is injected automatically at every session start
+  </Card>
+  <Card
+    title="Auto-Updating Summaries"
+    icon="sync"
+  >
+    File summaries update silently after every edit
+  </Card>
+  <Card
+    title="Full Repository Scanning"
+    icon="magnifying-glass"
+  >
+    Index your entire codebase on demand
+  </Card>
+  <Card
+    title="Decision Logging"
+    icon="book"
+  >
+    Track what was decided and why, session by session
+  </Card>
+  <Card
+    title="Global & Project Stash"
+    icon="layer-group"
+  >
+    Global preferences plus per-project context
+  </Card>
+  <Card
+    title="Silent Background Updates"
+    icon="ghost"
+  >
+    Hooks run automatically — no manual intervention needed
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+```bash
+# Install TokenStash
+/plugin marketplace add abhinavdubeyad9/tokenstash
+/plugin install tokenstash@tokenstash
+
+# Start a new session — your stash is loaded automatically
+# Claude already knows your project structure, decisions, and key files
+
+# Save your session summary
+/stash-save
+
+# Scan the entire repo
+/stash-scan
+
+# Force re-scan everything
+/stash-scan --force
+
+# Clear the stash
+/stash-clear
+```
+
+## What Gets Stashed
+
+TokenStash maintains multiple context files:
+
+- **architecture.md** — High-level codebase overview, structure, patterns, key components
+- **decisions.md** — Decision log — what was decided each session and why
+- **rules.md** — Project-specific rules and conventions
+- **files/\*.md** — Per-file summaries (3-5 lines each)
+
+## Get Started
 
 <Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
+  title="Installation Guide"
+  icon="download"
+  href="/installation"
   horizontal
 >
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
+  Install TokenStash and configure your first stash in minutes
 </Card>

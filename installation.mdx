@@ -1,0 +1,230 @@
+---
+title: Installation
+description: Detailed installation and setup guide for TokenStash
+---
+
+## Prerequisites
+
+Before installing TokenStash, make sure you have:
+
+- **Claude Code** installed and running
+- A git repository (TokenStash uses `git rev-parse` to find your project root)
+
+<Note>
+TokenStash stores project stashes at `<repo-root>/.tokenstash/`, so your project must be a git repository.
+</Note>
+
+## Installation
+
+<Steps>
+  <Step title="Register the Marketplace">
+    First, register the TokenStash marketplace:
+
+    ```bash
+    /plugin marketplace add abhinavdubeyad9/tokenstash
+    ```
+
+    This tells Claude Code where to find the TokenStash plugin.
+  </Step>
+
+  <Step title="Install the Plugin">
+    Install TokenStash:
+
+    ```bash
+    /plugin install tokenstash@tokenstash
+    ```
+
+    The plugin will be installed to your Claude Code plugins directory.
+  </Step>
+
+  <Step title="Restart Your Session">
+    Start a new Claude Code session or restart your current one.
+
+    TokenStash hooks into session start automatically — no additional configuration needed.
+  </Step>
+</Steps>
+
+## Verify Installation
+
+To verify TokenStash is installed and working:
+
+1. Start a new Claude Code session
+2. You should see TokenStash load automatically
+3. If no stash exists yet, you'll see:
+   ```
+   TokenStash: No stash found. Run /stash-scan to index this project.
+   ```
+4. Try running a command:
+   ```bash
+   /stash-scan
+   ```
+
+If the command works, TokenStash is installed correctly.
+
+## Initial Setup
+
+### Option 1: Build the Stash Gradually (Recommended)
+
+Just start working. TokenStash will build up automatically:
+
+- Edit files → summaries are created automatically
+- Run `/stash-save` → decisions and architecture are saved
+
+This approach is low-friction and builds context as you need it.
+
+### Option 2: Index Everything Upfront
+
+If you want to populate the stash immediately:
+
+```bash
+/stash-scan
+```
+
+This will:
+- Scan all files in your repository
+- Generate summaries for each file
+- Create an architecture overview
+- Save everything to `.tokenstash/`
+
+<Warning>
+Files over 500 lines are skipped during scanning. Large codebases may take a few minutes to scan.
+</Warning>
+
+To re-scan everything and overwrite existing summaries:
+
+```bash
+/stash-scan --force
+```
+
+## Configuration
+
+### Stash Locations
+
+TokenStash supports two stash locations:
+
+#### Global Stash
+
+Location: `~/.claude/tokenstash/`
+
+The global stash applies to all projects. Use it for:
+- Personal preferences (`preferences.md`)
+- Global coding rules (`rules.md`)
+- Patterns you use across all projects
+
+#### Project Stash
+
+Location: `<repo-root>/.tokenstash/`
+
+The project stash is specific to one repository. Use it for:
+- Project architecture (`architecture.md`)
+- Session decisions (`decisions.md`)
+- Project-specific rules (`rules.md`)
+- File summaries (`files/*.md`)
+
+<Info>
+Project stashes take precedence over global stashes. If both have a `rules.md`, the project version is used.
+</Info>
+
+### What Gets Stored
+
+TokenStash creates the following structure:
+
+```
+.tokenstash/
+├── architecture.md    # High-level codebase overview
+├── decisions.md       # Decision log by session date
+├── rules.md           # Project-specific coding rules
+└── files/             # Per-file summaries
+    ├── src__index.md
+    ├── src__lib__utils.md
+    └── ...
+```
+
+File paths are flattened: `/` becomes `__` (e.g., `src/lib/utils.ts` → `src__lib__utils.md`).
+
+## Add to .gitignore
+
+The stash contains summaries, not code — it's safe to commit to version control.
+
+**If you want to commit it** (recommended for teams):
+- Leave it as-is
+- Team members will share the same context
+- Decisions are documented in version control
+
+**If you want to keep it local**:
+
+Add to your `.gitignore`:
+
+```bash .gitignore
+.tokenstash/
+```
+
+<Note>
+Even if you commit the stash, it's small (just summaries) and won't bloat your repository.
+</Note>
+
+## How It Works
+
+### Automatic Loading
+
+TokenStash registers a `SessionStart` hook that runs every time you start a Claude Code session. This hook:
+
+1. Finds your git repository root
+2. Loads global stash from `~/.claude/tokenstash/`
+3. Loads project stash from `<repo-root>/.tokenstash/`
+4. Injects all context into Claude's initial context window
+
+You don't need to do anything — it happens automatically.
+
+### Automatic Updates
+
+TokenStash registers a `PostToolUse` hook that triggers after every `Write` or `Edit` tool call. This hook:
+
+1. Detects which file was edited
+2. Reminds Claude to update that file's summary
+3. Claude updates `.tokenstash/files/<path>.md` silently
+
+This keeps the stash in sync with your changes automatically.
+
+## Troubleshooting
+
+### TokenStash Not Loading
+
+**Problem:** Session starts but no stash is loaded.
+
+**Solution:**
+- Make sure you're in a git repository (`git rev-parse --show-toplevel` should work)
+- Check if `.tokenstash/` exists in your repo root
+- Run `/stash-scan` to create an initial stash
+
+### Commands Not Found
+
+**Problem:** `/stash-save` or other commands don't work.
+
+**Solution:**
+- Verify the plugin is installed: check your plugins directory
+- Reinstall:
+  ```bash
+  /plugin install tokenstash@tokenstash
+  ```
+- Restart your Claude Code session
+
+### Stash Not Updating
+
+**Problem:** File summaries aren't updating after edits.
+
+**Solution:**
+- The auto-update is silent — check `.tokenstash/files/` to see if summaries exist
+- Run `/stash-save` manually to force an update
+- Check that the `PostToolUse` hook is registered in the plugin
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running quickly
+  </Card>
+  <Card title="Commands" icon="terminal" href="/commands">
+    Learn about all available commands
+  </Card>
+</CardGroup>

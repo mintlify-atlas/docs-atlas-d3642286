@@ -1,0 +1,254 @@
+---
+title: '/stash-save'
+description: 'Save a full session summary to the TokenStash'
+---
+
+The `/stash-save` command captures your work session by updating decisions, architecture, and file summaries. Run it at the end of a work session to preserve context for future Claude sessions.
+
+## What It Does
+
+When you run `/stash-save`, TokenStash performs three operations:
+
+1. **Updates decisions.md** — Appends a session entry with decisions made and files changed
+2. **Updates architecture.md** — Rewrites if structural changes occurred (new modules, patterns, dependencies)
+3. **Sweeps file summaries** — Creates or updates summaries for every file you edited or read
+
+<Note>
+  `/stash-save` is intelligent: it only updates architecture.md when structural changes occurred. For typical sessions, it just logs decisions and file changes.
+</Note>
+
+## When to Use It
+
+Run `/stash-save` when:
+
+- Ending a work session
+- After completing a feature or bug fix
+- Before context-switching to different work
+- After making important architectural decisions
+- When you want to preserve "why" something was done
+
+<Warning>
+  Don't wait too long between saves. Decisions are easier to capture while they're fresh in memory.
+</Warning>
+
+## What Gets Updated
+
+### 1. decisions.md
+
+Appends a new entry with this format:
+
+```markdown
+## 2026-03-13 — Added user authentication
+
+**Decisions:**
+- Used JWT tokens instead of sessions for stateless auth
+- Stored refresh tokens in httpOnly cookies for security
+
+**Files changed:** src/auth/jwt.ts, src/middleware/auth.ts
+```
+
+Each entry captures:
+- **Date** and **one-line summary** of what you worked on
+- **Decisions** — What you decided and why (the "why" is critical)
+- **Files changed** — List of modified files
+
+### 2. architecture.md
+
+**Only updated if structural changes occurred**, such as:
+- New modules or directories added
+- Changed architectural patterns
+- New dependencies introduced
+- Major refactoring that changes component relationships
+
+When updated, it's completely rewritten to reflect current state:
+
+```markdown
+## Architecture Overview
+Express API with TypeScript. JWT-based authentication. PostgreSQL database 
+with Prisma ORM. Redis for session caching.
+
+## Key Components
+- `src/auth/`: JWT token generation and validation
+- `src/api/`: REST endpoints organized by resource
+- `src/db/`: Prisma schema and migrations
+- `src/middleware/`: Auth, logging, error handling
+
+## Patterns
+- Controller-service-repository pattern for API routes
+- Dependency injection using tsyringe
+- Zod schemas for request validation
+```
+
+<Note>
+  If nothing structural changed (just bug fixes or small features), architecture.md is left untouched.
+</Note>
+
+### 3. File Summaries
+
+For **every file you edited or read** during the session, TokenStash creates or updates a summary in `.tokenstash/files/`:
+
+```markdown
+**Purpose:** Handles JWT token generation and validation for user authentication.
+
+**Key exports:** 
+- `generateToken(userId)` — Creates access token
+- `verifyToken(token)` — Validates and decodes token
+- `refreshTokenMiddleware` — Express middleware for refresh flow
+
+**Patterns:** 
+- Uses jsonwebtoken library
+- Tokens expire in 15 minutes, refresh in 7 days
+- Secrets loaded from environment variables
+
+**Last updated:** 2026-03-13
+```
+
+File summaries are stored with flattened paths: `src/auth/jwt.ts` becomes `.tokenstash/files/src-auth-jwt-ts.md`
+
+## Examples
+
+### Basic Session Save
+
+```bash
+# After working on your project:
+/stash-save
+```
+
+**Output:**
+```
+TokenStash saved. Session summary written to .tokenstash/decisions.md.
+```
+
+### What Happens Behind the Scenes
+
+Let's say you edited three files and made architectural decisions:
+
+1. **decisions.md** gets a new entry:
+   ```markdown
+   ## 2026-03-13 — Implemented rate limiting
+   
+   **Decisions:**
+   - Used Redis for rate limit counters (in-memory too unreliable for multi-instance)
+   - Set default limit to 100 requests/minute per IP
+   
+   **Files changed:** src/middleware/rateLimit.ts, src/config/redis.ts, src/app.ts
+   ```
+
+2. **architecture.md** gets rewritten because Redis was added:
+   ```markdown
+   ## Key Components
+   - `src/middleware/rateLimit.ts`: Rate limiting with Redis backend
+   - `src/config/redis.ts`: Redis connection and configuration
+   ...
+   ```
+
+3. **File summaries** created or updated:
+   - `.tokenstash/files/src-middleware-rateLimit-ts.md`
+   - `.tokenstash/files/src-config-redis-ts.md`
+   - `.tokenstash/files/src-app-ts.md`
+
+## Real-World Workflow
+
+<Steps>
+  <Step title="Work on your feature">
+    Edit files, make changes, test your code as usual.
+  </Step>
+  
+  <Step title="Run /stash-save">
+    At the end of your session (or after completing a logical unit of work), run:
+    ```bash
+    /stash-save
+    ```
+  </Step>
+  
+  <Step title="Review the entry">
+    Check `.tokenstash/decisions.md` to verify your session was captured:
+    ```bash
+    # View the last few entries
+    tail -n 20 .tokenstash/decisions.md
+    ```
+  </Step>
+  
+  <Step title="Commit changes">
+    Commit both your code changes AND the updated `.tokenstash/` directory:
+    ```bash
+    git add . .tokenstash/
+    git commit -m "Add rate limiting with Redis"
+    ```
+  </Step>
+</Steps>
+
+## Comparison with /stash-scan
+
+| Feature | /stash-save | /stash-scan |
+|---------|-------------|-------------|
+| **Speed** | Fast (only touched files) | Slow (entire repo) |
+| **Scope** | Files you read/edited | All source files |
+| **Updates decisions.md** | Yes | No |
+| **Updates architecture.md** | Only if structure changed | Always |
+| **Use case** | End of session | Initial setup, major refactors |
+
+<Note>
+  Use `/stash-save` for daily work. Use `/stash-scan` for initial setup or after major refactors.
+</Note>
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Save frequently">
+    Don't wait until the end of the day. Save after completing each feature or fix so decisions are fresh.
+  </Accordion>
+
+  <Accordion title="Be specific in decisions">
+    TokenStash writes better entries when you've been specific about what you did and why. If decisions aren't captured well, add detail manually to `.tokenstash/decisions.md`.
+  </Accordion>
+
+  <Accordion title="Review before committing">
+    Check `decisions.md` after saving to ensure important context was captured. Edit if needed.
+  </Accordion>
+
+  <Accordion title="Combine with version control">
+    Commit `.tokenstash/` alongside code changes so decisions travel with the code:
+    ```bash
+    git add . .tokenstash/
+    git commit -m "Your commit message"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No .tokenstash directory">
+    If `.tokenstash/` doesn't exist, run `/stash-scan` first to create the initial structure:
+    ```bash
+    /stash-scan
+    ```
+  </Accordion>
+
+  <Accordion title="Decisions not captured correctly">
+    You can manually edit `.tokenstash/decisions.md` to add missing context or fix entries:
+    ```bash
+    # Edit directly
+    code .tokenstash/decisions.md
+    ```
+  </Accordion>
+
+  <Accordion title="Architecture.md not updating">
+    This is intentional. It only updates when structural changes occur. If you want to force an update, edit it manually or run:
+    ```bash
+    /stash-scan --force
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Scan Command" icon="magnifying-glass" href="/commands/stash-scan">
+    Learn about initial repo scanning
+  </Card>
+  <Card title="Clear Command" icon="trash" href="/commands/stash-clear">
+    When to wipe and rebuild
+  </Card>
+</CardGroup>

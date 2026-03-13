@@ -1,0 +1,383 @@
+---
+title: '/stash-clear'
+description: 'Wipe the TokenStash for the current project'
+---
+
+The `/stash-clear` command completely deletes the `.tokenstash/` directory for your current project. Use it when you want to start fresh or if the stash becomes corrupted.
+
+<Warning>
+  This command permanently deletes all TokenStash data: decisions, architecture overview, and all file summaries. This action cannot be undone.
+</Warning>
+
+## What It Does
+
+When you run `/stash-clear`:
+
+1. **Asks for confirmation** — You must type `YES` (all caps) to proceed
+2. **Deletes `.tokenstash/` directory** — Removes the entire directory at your repository root
+3. **Tells you how to rebuild** — Reminds you to run `/stash-scan` to recreate the stash
+
+<Note>
+  `/stash-clear` only affects the current git repository. If you have multiple projects, each has its own `.tokenstash/` directory.
+</Note>
+
+## When to Use It
+
+### Starting Fresh
+
+If you want to rebuild your TokenStash from scratch with current knowledge:
+
+```bash
+/stash-clear
+# Then rebuild:
+/stash-scan
+```
+
+### Stash is Corrupted
+
+If `.tokenstash/` files are malformed or causing errors:
+
+```bash
+/stash-clear
+/stash-scan
+```
+
+### Project Structure Changed Dramatically
+
+After a major rewrite where old decisions and architecture are no longer relevant:
+
+```bash
+/stash-clear
+/stash-scan
+```
+
+### Removing TokenStash Completely
+
+If you're discontinuing use of TokenStash on a project:
+
+```bash
+/stash-clear
+# Don't run /stash-scan
+```
+
+<Note>
+  In most cases, you should use `/stash-scan --force` instead of clearing. Force rescan updates summaries while preserving your decisions.md history.
+</Note>
+
+## Confirmation Process
+
+TokenStash requires explicit confirmation to prevent accidental deletion:
+
+<CodeGroup>
+```bash Step 1: Run command
+/stash-clear
+```
+
+```plaintext Step 2: Confirmation prompt
+Are you sure you want to wipe .tokenstash/ for this project? 
+Type YES to confirm.
+```
+
+```bash Step 3: Type YES
+YES
+```
+
+```plaintext Step 4: Confirmation
+.tokenstash/ has been deleted.
+TokenStash cleared. Run /stash-scan to rebuild.
+```
+</CodeGroup>
+
+### What Happens If You Don't Confirm
+
+If you type anything other than `YES` (case-sensitive):
+
+<CodeGroup>
+```bash Wrong confirmation
+yes
+```
+
+```plaintext Response
+Stash was not cleared.
+```
+</CodeGroup>
+
+The directory remains untouched.
+
+## What Gets Deleted
+
+The entire `.tokenstash/` directory and all its contents:
+
+```
+.tokenstash/                    ← Entire directory deleted
+├── decisions.md               ← Session history lost
+├── architecture.md            ← Architecture overview lost
+└── files/                     ← All file summaries lost
+    ├── src-index-ts.md
+    ├── src-utils-helper-ts.md
+    └── ...
+```
+
+<Warning>
+  Your `decisions.md` contains valuable session history and rationale for past decisions. Consider backing it up before clearing:
+  ```bash
+  cp .tokenstash/decisions.md ~/decisions-backup.md
+  /stash-clear
+  ```
+</Warning>
+
+## How to Rebuild After Clearing
+
+After clearing, you need to rebuild your TokenStash:
+
+<Steps>
+  <Step title="Clear the stash">
+    ```bash
+    /stash-clear
+    # Type YES to confirm
+    ```
+  </Step>
+  
+  <Step title="Rescan the repository">
+    ```bash
+    /stash-scan
+    ```
+    This rebuilds file summaries and architecture.md.
+  </Step>
+  
+  <Step title="Optional: Restore decisions">
+    If you backed up decisions.md, restore it:
+    ```bash
+    cp ~/decisions-backup.md .tokenstash/decisions.md
+    ```
+  </Step>
+  
+  <Step title="Resume normal workflow">
+    Continue using `/stash-save` for session summaries.
+  </Step>
+</Steps>
+
+## Examples
+
+### Successful Clear
+
+<CodeGroup>
+```bash Terminal
+/stash-clear
+```
+
+```plaintext Confirmation
+Are you sure you want to wipe .tokenstash/ for this project?
+Type YES to confirm.
+```
+
+```bash Confirm
+YES
+```
+
+```plaintext Result
+.tokenstash/ has been deleted.
+TokenStash cleared. Run /stash-scan to rebuild.
+```
+</CodeGroup>
+
+### Cancelled Clear
+
+<CodeGroup>
+```bash Terminal
+/stash-clear
+```
+
+```plaintext Confirmation
+Are you sure you want to wipe .tokenstash/ for this project?
+Type YES to confirm.
+```
+
+```bash Cancel
+no
+```
+
+```plaintext Result
+Stash was not cleared.
+```
+</CodeGroup>
+
+### Clear and Rebuild
+
+<CodeGroup>
+```bash Full workflow
+# 1. Backup decisions (optional)
+cp .tokenstash/decisions.md ~/decisions-backup.md
+
+# 2. Clear
+/stash-clear
+# Type YES
+
+# 3. Rebuild
+/stash-scan
+
+# 4. Restore decisions (optional)
+cp ~/decisions-backup.md .tokenstash/decisions.md
+```
+</CodeGroup>
+
+## Alternatives to Clearing
+
+Before using `/stash-clear`, consider these alternatives:
+
+### Force Rescan Instead
+
+If summaries are stale but you want to keep decisions:
+
+```bash
+/stash-scan --force
+```
+
+This updates all file summaries and architecture.md while preserving decisions.md.
+
+### Manual Edit
+
+If only specific files are wrong, manually edit them:
+
+```bash
+# Edit a specific summary
+code .tokenstash/files/src-problematic-file-ts.md
+
+# Edit architecture
+code .tokenstash/architecture.md
+
+# Edit or trim decisions
+code .tokenstash/decisions.md
+```
+
+### Selective Deletion
+
+Delete only specific parts of the stash:
+
+```bash
+# Delete only file summaries (keep decisions and architecture)
+rm -rf .tokenstash/files/
+/stash-scan  # Rebuilds files/ only
+
+# Clear just one file summary
+rm .tokenstash/files/src-old-file-ts.md
+```
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Backup decisions.md first">
+    Your decisions log is valuable historical context. Back it up before clearing:
+    ```bash
+    cp .tokenstash/decisions.md ~/decisions-backup-$(date +%Y%m%d).md
+    ```
+  </Accordion>
+
+  <Accordion title="Consider force rescan instead">
+    In most cases, `/stash-scan --force` is better than clearing. It updates everything while keeping your decisions history intact.
+  </Accordion>
+
+  <Accordion title="Clear per-project, not global">
+    Each git repository has its own `.tokenstash/`. Clearing only affects the current project, not other projects.
+  </Accordion>
+
+  <Accordion title="Don't clear to free space">
+    TokenStash directories are tiny (usually < 1MB). Don't clear just to save disk space. The knowledge is worth more than the bytes.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Can't find .tokenstash directory">
+    If `/stash-clear` says it can't find `.tokenstash/`, either:
+    - You're not in a git repository
+    - TokenStash was never initialized (run `/stash-scan` first)
+    - You're in a subdirectory (cd to repo root)
+    
+    Check your location:
+    ```bash
+    git rev-parse --show-toplevel
+    ls -la .tokenstash
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    If you get permission errors:
+    ```bash
+    # Check ownership
+    ls -la .tokenstash
+    
+    # Fix permissions if needed
+    chmod -R u+w .tokenstash
+    /stash-clear
+    ```
+  </Accordion>
+
+  <Accordion title="Want to undo clear">
+    If you cleared by mistake and haven't committed:
+    ```bash
+    # If .tokenstash was committed to git:
+    git checkout HEAD -- .tokenstash
+    
+    # If not in git, you'll need to rescan:
+    /stash-scan
+    ```
+  </Accordion>
+
+  <Accordion title="Cleared wrong project">
+    Each project has its own stash. If you cleared the wrong one:
+    1. Navigate to that project
+    2. Run `/stash-scan` to rebuild
+    3. If decisions.md was in git, restore it:
+       ```bash
+       git checkout HEAD -- .tokenstash/decisions.md
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Version Control Considerations
+
+If you commit `.tokenstash/` to version control:
+
+### Before Clearing
+
+Check git status to see what you're about to lose:
+
+```bash
+git status .tokenstash/
+git log --oneline .tokenstash/decisions.md
+```
+
+### After Clearing
+
+You'll need to commit the deletion:
+
+```bash
+/stash-clear  # Type YES
+git add .tokenstash
+git commit -m "Clear TokenStash for fresh start"
+```
+
+### Recovering from Git
+
+If `.tokenstash/` was committed, you can recover it:
+
+```bash
+# See when it was deleted
+git log --all --full-history -- .tokenstash/
+
+# Restore from a previous commit
+git checkout <commit-hash> -- .tokenstash/
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Scan Command" icon="magnifying-glass" href="/commands/stash-scan">
+    Rebuild after clearing
+  </Card>
+  <Card title="Save Command" icon="floppy-disk" href="/commands/stash-save">
+    Resume session saves
+  </Card>
+</CardGroup>

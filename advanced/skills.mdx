@@ -1,0 +1,275 @@
+---
+title: Skills System
+description: Built-in skills for scanning, saving, and auto-updating the stash
+icon: brain
+---
+
+TokenStash includes three built-in skills that Claude uses to manage the stash. Skills are structured markdown files that provide step-by-step instructions for specific tasks.
+
+## What Are Skills?
+
+Skills are specialized instruction sets that Claude loads when performing TokenStash operations. They're written in markdown with YAML frontmatter and live in the `skills/` directory.
+
+### Skill Structure
+
+Each skill has:
+- **Frontmatter:** Name and description
+- **Steps:** Clear, actionable instructions
+- **Format guidelines:** Exact output formats and rules
+
+## The Three Skills
+
+<CardGroup cols={3}>
+  <Card title="scan" icon="radar">
+    Build the full stash index from scratch
+  </Card>
+  <Card title="save" icon="floppy-disk">
+    Save a session summary to the stash
+  </Card>
+  <Card title="auto-update" icon="arrows-rotate">
+    Update a file summary after editing
+  </Card>
+</CardGroup>
+
+## Scan Skill
+
+The `scan` skill builds or refreshes the entire TokenStash index for a project. It's invoked by the `/stash-scan` command.
+
+### What It Does
+
+1. Finds the repo root using `git rev-parse --show-toplevel`
+2. Discovers all files (excluding `.git/`, `node_modules/`, etc.)
+3. Summarizes each file into `.tokenstash/files/<flattened-path>.md`
+4. Writes `.tokenstash/architecture.md` based on the full codebase structure
+
+### Full Skill Definition
+
+<CodeGroup>
+```markdown skills/scan/SKILL.md
+---
+name: scan
+description: Scan the repo and build the full TokenStash index
+---
+
+# TokenStash: Scan Repository
+
+Scan the project and build or refresh the stash. Check if `--force` was passed — if so, overwrite existing summaries. Otherwise skip files that already have summaries.
+
+## Steps
+
+### 1. Find repo root
+Use `git rev-parse --show-toplevel` to find the repo root. All stash files go in `<repo-root>/.tokenstash/`.
+
+### 2. Discover files
+List all files in the repo, excluding:
+- `.git/`, `node_modules/`, `.tokenstash/`, `dist/`, `build/`, `.next/`
+- Binary files (images, fonts, compiled artifacts)
+- Files over 500 lines (skip with a note)
+
+### 3. Summarize each file
+For each file not yet summarized (or all files if `--force`):
+- Read the file
+- Write `.tokenstash/files/<flattened-path>.md` with:
+  ```
+  **Purpose:** One sentence.
+  **Key exports:** Main functions/classes/constants.
+  **Patterns:** Notable patterns.
+  **Last updated:** YYYY-MM-DD
+  ```
+
+### 4. Write architecture.md
+Based on the full picture of the codebase, write `.tokenstash/architecture.md`:
+```
+## Architecture Overview
+[2-4 sentences]
+
+## Key Components
+- `path/`: description
+...
+
+## Patterns
+- [patterns observed]
+
+## Tech Stack
+- [main technologies]
+```
+
+### 5. Report
+Tell the user how many files were summarized and where the stash was written.
+```
+</CodeGroup>
+
+<Info>
+**Invoked by:** `/stash-scan` and `/stash-scan --force`
+</Info>
+
+## Save Skill
+
+The `save` skill saves a full session summary to the stash. It updates `decisions.md`, optionally rewrites `architecture.md`, and sweeps file summaries.
+
+### What It Does
+
+1. Appends to `.tokenstash/decisions.md` with a timestamped summary
+2. Updates `.tokenstash/architecture.md` if the structure changed
+3. Sweeps file summaries for any files edited or read during the session
+
+### Full Skill Definition
+
+<CodeGroup>
+```markdown skills/save/SKILL.md
+---
+name: save
+description: Save a full session summary to the TokenStash
+---
+
+# TokenStash: Save Session
+
+Do a full stash save now. Work through these steps:
+
+## 1. Update decisions.md
+
+Append to `.tokenstash/decisions.md` (create if missing):
+
+```
+## YYYY-MM-DD — [one-line session summary]
+
+**Decisions:**
+- [What was decided and why]
+- [Another decision if applicable]
+
+**Files changed:** file1.ts, file2.py
+```
+
+## 2. Update architecture.md
+
+If the codebase structure changed this session (new modules, changed patterns, new dependencies), rewrite `.tokenstash/architecture.md` to reflect the current state. If nothing structural changed, leave it alone.
+
+Format:
+```
+## Architecture Overview
+[2-4 sentences describing the overall structure]
+
+## Key Components
+- `path/to/module`: what it does
+- `path/to/module`: what it does
+
+## Patterns
+- [notable patterns used]
+```
+
+## 3. Sweep file summaries
+
+For every file you edited or read this session that doesn't have a current summary in `.tokenstash/files/`, write one now using the auto-update format (Purpose / Key exports / Patterns / Last updated).
+
+## 4. Done
+
+Tell the user: "TokenStash saved. Session summary written to .tokenstash/decisions.md."
+```
+</CodeGroup>
+
+<Info>
+**Invoked by:** `/stash-save` command
+</Info>
+
+## Auto-Update Skill
+
+The `auto-update` skill updates a single file's summary after you edit it. It's triggered automatically by the PostToolUse hook.
+
+### What It Does
+
+1. Detects when you edit a file (via PostToolUse hook)
+2. Creates or updates `.tokenstash/files/<flattened-path>.md`
+3. Writes a 3-5 line summary with purpose, exports, patterns, and date
+4. Deletes the summary if the file was deleted
+
+### Full Skill Definition
+
+<CodeGroup>
+```markdown skills/auto-update/SKILL.md
+---
+name: auto-update
+description: Update the TokenStash file summary for a file you just edited
+---
+
+# TokenStash: Auto-Update File Summary
+
+You just edited a file. Update its summary in the stash now.
+
+## What to write
+
+Find or create `.tokenstash/files/<flattened-path>.md` where `<flattened-path>` replaces `/` with `__` (e.g. `src/lib/utils.ts` → `src__lib__utils.md`).
+
+Write a summary with this exact structure (3-5 lines max, no fluff):
+
+```
+**Purpose:** One sentence — what this file does.
+**Key exports:** List the main functions/classes/constants exported.
+**Patterns:** Any notable patterns (e.g. "uses factory pattern", "singleton").
+**Last updated:** YYYY-MM-DD
+```
+
+## Rules
+
+- Keep it under 5 lines. Future Claude needs to skip re-reading this file, not understand it fully.
+- Do not summarize boilerplate (imports, types only, empty files).
+- If the file was deleted, delete its summary too.
+- Create `.tokenstash/files/` if it doesn't exist yet.
+- Do this silently — no need to tell the user unless there's an error.
+```
+</CodeGroup>
+
+<Info>
+**Invoked by:** PostToolUse hook automatically, or manually via `tokenstash:auto-update`
+</Info>
+
+## How Commands Invoke Skills
+
+When you run a TokenStash command, Claude Code loads the corresponding skill and follows its instructions:
+
+<Steps>
+  <Step title="Command Triggered">
+    You run `/stash-scan`, `/stash-save`, or edit a file
+  </Step>
+  <Step title="Skill Loaded">
+    Claude Code loads the skill markdown file from `skills/<skill-name>/SKILL.md`
+  </Step>
+  <Step title="Instructions Injected">
+    The skill's content is added to Claude's context as system instructions
+  </Step>
+  <Step title="Claude Executes">
+    Claude follows the step-by-step instructions in the skill
+  </Step>
+  <Step title="Output Generated">
+    Claude writes stash files according to the skill's format guidelines
+  </Step>
+</Steps>
+
+## Skill Best Practices
+
+<AccordionGroup>
+  <Accordion title="Clear Steps">
+    Skills use numbered steps and concrete actions. No ambiguity.
+  </Accordion>
+  <Accordion title="Exact Formats">
+    Skills specify exact output formats with code blocks and examples.
+  </Accordion>
+  <Accordion title="Error Handling">
+    Skills include rules for edge cases (missing files, empty content, etc.).
+  </Accordion>
+  <Accordion title="Minimal Output">
+    Skills keep summaries short. Future Claude skips re-reading files, not understands them fully.
+  </Accordion>
+</AccordionGroup>
+
+## Custom Skills
+
+You can add custom skills to extend TokenStash:
+
+1. Create `skills/<skill-name>/SKILL.md`
+2. Add frontmatter with `name` and `description`
+3. Write step-by-step instructions
+4. Invoke with `tokenstash:<skill-name>` in Claude Code
+
+<Note>
+Custom skills follow the same structure as built-in skills. Reference `skills/scan/SKILL.md` as a template.
+</Note>

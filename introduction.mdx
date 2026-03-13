@@ -1,0 +1,82 @@
+---
+title: Introduction
+description: Cache project context locally so Claude starts every session knowing your codebase
+---
+
+## What is TokenStash?
+
+TokenStash is a Claude Code plugin that caches project context locally — so Claude starts every session already knowing your codebase. No re-reading files. No re-explaining architecture. Just start coding.
+
+## The Problem
+
+Every time you start a new Claude Code session, you have to:
+- Wait for Claude to re-read files
+- Re-explain your project's architecture
+- Remind Claude about decisions made in previous sessions
+- Repeat context about coding patterns and rules
+
+This wastes tokens, time, and interrupts your flow.
+
+## The Solution
+
+TokenStash saves summaries of your project to `.tokenstash/` as you work. At the start of every session, the stash is automatically injected into Claude's context.
+
+Claude immediately knows:
+- Your codebase architecture and structure
+- Decisions made in previous sessions
+- Project-specific rules and patterns
+- What each file does (without re-reading)
+
+## What Gets Cached
+
+TokenStash maintains four types of documentation:
+
+| File | Contents |
+|------|----------|
+| `architecture.md` | High-level codebase overview — structure, patterns, key components |
+| `decisions.md` | Decision log — what was decided each session and why |
+| `rules.md` | Project-specific rules (CLAUDE.md on steroids) |
+| `files/<path>.md` | Per-file summaries (3-5 lines each) |
+
+## How It Builds Up
+
+The stash grows automatically as you work:
+
+- **Auto:** After every file edit, Claude updates that file's summary silently
+- **Manual:** Run `/stash-save` at the end of a session to save decisions and architecture
+- **Full index:** Run `/stash-scan` once on a new project to summarize everything upfront
+
+## Stash Locations
+
+TokenStash supports both global and project-level stashes:
+
+| Scope | Path | Priority |
+|-------|------|----------|
+| Global | `~/.claude/tokenstash/` | Base (applies to all projects) |
+| Project | `<repo-root>/.tokenstash/` | Override (takes precedence) |
+
+Project stashes take precedence over global stashes, allowing per-project customization.
+
+## When to Use TokenStash
+
+TokenStash is ideal for:
+
+- **Long-running projects** where you work across multiple sessions
+- **Complex codebases** with specific architecture patterns
+- **Team projects** where decisions need to be documented
+- **Any project** where you want Claude to remember context
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get TokenStash working in under 2 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Detailed installation and setup guide
+  </Card>
+</CardGroup>
+
+<Note>
+The stash contains summaries, not code. It's safe to commit to version control, but you can add `.tokenstash/` to `.gitignore` if you prefer to keep it local.
+</Note>

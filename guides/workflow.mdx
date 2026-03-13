@@ -1,0 +1,360 @@
+---
+title: Daily Workflow
+description: How to use TokenStash in your day-to-day development
+---
+
+TokenStash is designed to fade into the background — it builds itself as you work. Here's how to use it effectively.
+
+## Starting a New Project
+
+When you first clone a repo or start a new project, run a full scan to index everything:
+
+<Steps>
+  <Step title="Open the project in Claude">
+    ```bash
+    cd my-app
+    claude
+    ```
+  </Step>
+  
+  <Step title="Run the scan command">
+    ```
+    /stash-scan
+    ```
+    
+    This will:
+    - Summarize every file in the repo
+    - Generate `architecture.md` with codebase overview
+    - Create `.tokenstash/files/` with per-file summaries
+  </Step>
+  
+  <Step title="Verify the stash">
+    Claude will report:
+    ```
+    TokenStash scan complete.
+    - 147 files summarized
+    - Stash written to /path/to/my-app/.tokenstash/
+    ```
+  </Step>
+  
+  <Step title="Restart the session">
+    Close and reopen Claude. The stash will load automatically:
+    ```xml
+    <tokenstash>
+    ## Project: architecture.md
+    [architecture content]
+    
+    ## File Summaries (147 files cached)
+    ...
+    </tokenstash>
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The first scan takes 1-2 minutes for a typical project. After that, updates are instant.
+</Note>
+
+## Daily Development Workflow
+
+Once the stash is initialized, it maintains itself:
+
+<Steps>
+  <Step title="Start your session">
+    Open Claude in your project directory. The stash loads automatically via the `SessionStart` hook.
+    
+    <Tip>
+    You don't need to do anything — Claude already knows your codebase structure.
+    </Tip>
+  </Step>
+  
+  <Step title="Code normally">
+    Ask Claude to implement features, fix bugs, refactor code — work as usual.
+  </Step>
+  
+  <Step title="Auto-updates happen silently">
+    Every time you edit a file, the `PostToolUse` hook triggers:
+    
+    ```xml
+    <tokenstash-reminder>
+    You just edited `src/lib/utils.ts`. 
+    Use the tokenstash:auto-update skill to update its summary now.
+    </tokenstash-reminder>
+    ```
+    
+    Claude updates the file summary in `.tokenstash/files/` automatically.
+    
+    <Info>
+    This happens in the background — you won't see any output unless there's an error.
+    </Info>
+  </Step>
+  
+  <Step title="End your session">
+    Before closing Claude, run:
+    ```
+    /stash-save
+    ```
+    
+    This captures:
+    - What you worked on
+    - Decisions you made (and why)
+    - Architecture changes (if any)
+    - File summaries for anything you read but didn't edit
+  </Step>
+</Steps>
+
+### Example Day
+
+<Tabs>
+  <Tab title="Morning">
+    **9:00 AM** — Open Claude
+    ```
+    $ claude
+    ```
+    Stash loads automatically. Claude knows:
+    - Yesterday's decisions (from `decisions.md`)
+    - Current architecture (from `architecture.md`)
+    - All file summaries (from `files/*.md`)
+    
+    **9:05 AM** — Start coding
+    ```
+    You: Add user profile page with avatar upload
+    ```
+    Claude implements the feature, editing:
+    - `app/profile/page.tsx`
+    - `app/api/upload/route.ts`
+    - `lib/storage.ts`
+    
+    Each edit triggers auto-update (silent).
+  </Tab>
+  
+  <Tab title="Afternoon">
+    **2:00 PM** — Resume after lunch
+    ```
+    $ claude
+    ```
+    Stash loads with morning's updates already included.
+    
+    **2:15 PM** — Fix a bug
+    ```
+    You: The upload fails for files > 5MB
+    ```
+    Claude fixes `lib/storage.ts` and updates its summary automatically.
+  </Tab>
+  
+  <Tab title="Evening">
+    **5:45 PM** — End of day
+    ```
+    You: /stash-save
+    ```
+    Claude writes to `decisions.md`:
+    ```markdown
+    ## 2026-03-13 — Added user profile page
+    
+    **Decisions:**
+    - Use S3 for avatar storage (scalable, cheap)
+    - Limit uploads to 5MB (prevent abuse)
+    - Resize images server-side with Sharp
+    
+    **Files changed:** app/profile/page.tsx, app/api/upload/route.ts, lib/storage.ts
+    ```
+    
+    **5:50 PM** — Close Claude
+    
+    Tomorrow morning, Claude will remember everything.
+  </Tab>
+</Tabs>
+
+## When to Force Re-Scan
+
+Most of the time, auto-updates are enough. But sometimes you need a full refresh:
+
+### Use Cases
+
+<Accordion title="After pulling major changes">
+```bash
+git pull origin main
+# 50 files changed, 1000 insertions, 500 deletions
+```
+
+Run:
+```
+/stash-scan
+```
+
+This updates summaries for all changed files.
+</Accordion>
+
+<Accordion title="After switching branches">
+```bash
+git checkout feature/new-architecture
+# Branch has completely different structure
+```
+
+Run:
+```
+/stash-scan --force
+```
+
+The `--force` flag overwrites all existing summaries.
+</Accordion>
+
+<Accordion title="Stash feels out of date">
+If you've been working outside Claude (manual edits, refactoring tools), the stash may be stale.
+
+Run:
+```
+/stash-scan --force
+```
+
+This regenerates everything from scratch.
+</Accordion>
+
+<Accordion title="After major refactor">
+You renamed directories, moved files, or changed patterns:
+
+Run:
+```
+/stash-scan --force
+```
+
+Also run `/stash-save` to update `architecture.md` with new patterns.
+</Accordion>
+
+### Scan vs Scan --force
+
+| Command | Behavior | Use Case |
+|---------|----------|----------|
+| `/stash-scan` | Skip files with existing summaries | Update after pulling changes |
+| `/stash-scan --force` | Overwrite all summaries | Refresh stale stash, after major refactor |
+
+<Tip>
+`/stash-scan` is incremental (fast). `/stash-scan --force` is exhaustive (slower but thorough).
+</Tip>
+
+## Working Across Sessions
+
+TokenStash ensures continuity between sessions:
+
+<Steps>
+  <Step title="Session 1: Implement feature">
+    **You:** Add payment integration
+    
+    **Claude:** Creates `lib/stripe.ts`, `app/api/checkout/route.ts`
+    
+    **You:** `/stash-save`
+    
+    **Result:** Decision logged in `decisions.md`:
+    ```markdown
+    ## 2026-03-13 — Added Stripe payments
+    
+    **Decisions:**
+    - Use Stripe Checkout (hosted, PCI compliant)
+    - Store payment records in DB for reconciliation
+    ```
+  </Step>
+  
+  <Step title="Session 2: Debug issue (next day)">
+    **You:** (opens Claude)
+    
+    **Claude:** (loads stash, sees yesterday's decision)
+    
+    **You:** Webhook isn't firing for successful payments
+    
+    **Claude:** (already knows you use Stripe Checkout, checks webhook setup)
+  </Step>
+  
+  <Step title="Session 3: Refactor (next week)">
+    **You:** Move payment logic to service layer
+    
+    **Claude:** (knows current structure from `architecture.md`, proposes clean refactor)
+    
+    **You:** `/stash-save`
+    
+    **Result:** Architecture updated, decision logged.
+  </Step>
+</Steps>
+
+<Info>
+Each session builds on the last — no context loss, no re-explaining.
+</Info>
+
+## Resuming After Idle
+
+If Claude goes idle (no activity for 30+ minutes), the session resumes with fresh context:
+
+```xml
+<!-- SessionStart hook fires on resume -->
+<tokenstash>
+## Project: decisions.md
+[latest decisions]
+
+## File Summaries (147 files cached)
+[up-to-date summaries]
+</tokenstash>
+```
+
+No manual reload needed.
+
+## Multi-Project Workflow
+
+If you work on multiple projects, each has its own stash:
+
+```bash
+~/projects/
+├── project-a/
+│   └── .tokenstash/        # Project A's stash
+├── project-b/
+│   └── .tokenstash/        # Project B's stash
+└── project-c/
+    └── .tokenstash/        # Project C's stash
+```
+
+**Workflow:**
+
+<Steps>
+  <Step title="Work on Project A">
+    ```bash
+    cd ~/projects/project-a
+    claude
+    ```
+    Loads Project A's stash.
+  </Step>
+  
+  <Step title="Switch to Project B">
+    ```bash
+    cd ~/projects/project-b
+    claude
+    ```
+    Loads Project B's stash (completely separate context).
+  </Step>
+  
+  <Step title="Back to Project A">
+    ```bash
+    cd ~/projects/project-a
+    claude
+    ```
+    Loads Project A's stash again — no contamination from Project B.
+  </Step>
+</Steps>
+
+<Tip>
+Global stash (`~/.claude/tokenstash/`) applies to all projects. Use it for universal preferences and rules.
+</Tip>
+
+## Quick Reference
+
+| Scenario | Action |
+|----------|--------|
+| **First time in project** | `/stash-scan` |
+| **Start session** | (nothing — stash loads automatically) |
+| **During work** | (nothing — auto-updates handle it) |
+| **End of session** | `/stash-save` |
+| **After git pull** | `/stash-scan` |
+| **After switching branches** | `/stash-scan --force` |
+| **Stash feels stale** | `/stash-scan --force` |
+| **Clear everything** | `/stash-clear` (asks for confirmation) |
+
+<Note>
+You'll rarely need to think about TokenStash — it just works.
+</Note>

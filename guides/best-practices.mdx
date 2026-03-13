@@ -1,0 +1,469 @@
+---
+title: Best Practices
+description: Tips and recommendations for getting the most out of TokenStash
+---
+
+TokenStash is low-maintenance by design, but following these practices will maximize its value.
+
+## When to Save
+
+### Run `/stash-save` at session end
+
+This captures decisions and updates architecture:
+
+<Accordion title="Good times to save">
+- **End of work session** — Before closing Claude for the day
+- **After implementing a feature** — Capture what you built and why
+- **After making key decisions** — Document trade-offs for future you
+- **Before switching tasks** — Close the loop on current work
+</Accordion>
+
+<Accordion title="Skip saving if...">
+- You only read code (no changes)
+- You made trivial edits (typos, formatting)
+- The session was exploratory (no concrete outcomes)
+</Accordion>
+
+### What to include in the save
+
+Focus on **decisions** and **why**, not implementation details:
+
+<Tabs>
+  <Tab title="Good">
+    ```markdown
+    ## 2026-03-13 — Added caching layer
+    
+    **Decisions:**
+    - Use Redis instead of in-memory cache (scalable, persistent)
+    - Cache user profiles for 5 minutes (balance freshness vs load)
+    - Invalidate cache on profile update (consistency)
+    
+    **Files changed:** lib/cache.ts, app/api/users/route.ts
+    ```
+    
+    <Tip>
+    This tells future Claude **why** you chose Redis and the trade-offs.
+    </Tip>
+  </Tab>
+  
+  <Tab title="Bad">
+    ```markdown
+    ## 2026-03-13 — Added caching
+    
+    **Decisions:**
+    - Added Redis
+    - Set TTL to 300 seconds
+    - Used ioredis library
+    
+    **Files changed:** lib/cache.ts, app/api/users/route.ts
+    ```
+    
+    <Note>
+    This is just a list of **what** changed, not **why**. Future Claude won't know the reasoning.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Writing Effective decisions.md
+
+### Document trade-offs
+
+Explain **why** you chose option A over option B:
+
+```markdown
+## 2026-03-10 — Chose REST over GraphQL
+
+**Decisions:**
+- Use REST API instead of GraphQL
+  - Pro: Simpler for this use case (no complex nested queries)
+  - Pro: Better caching (HTTP cache works out of the box)
+  - Con: More endpoints to maintain
+  - Reason: Team is unfamiliar with GraphQL, REST is faster to ship
+```
+
+<Tip>
+In 6 months, you'll thank yourself for documenting the "why".
+</Tip>
+
+### Keep entries concise
+
+Aim for 3-5 bullet points per session:
+
+<Tabs>
+  <Tab title="Concise (Good)">
+    ```markdown
+    ## 2026-03-13 — Refactored auth middleware
+    
+    **Decisions:**
+    - Split auth into requireAuth() and optionalAuth() (clearer intent)
+    - Move JWT verification to lib/jwt.ts (reusable)
+    - Add role-based access control (admin vs user)
+    
+    **Files changed:** middleware/auth.ts, lib/jwt.ts
+    ```
+    
+    5 lines. Captures key decisions without noise.
+  </Tab>
+  
+  <Tab title="Too Verbose (Bad)">
+    ```markdown
+    ## 2026-03-13 — Refactored auth middleware
+    
+    **Decisions:**
+    - Created a new function called requireAuth that checks if the user is logged in
+    - Created another function called optionalAuth that allows both logged-in and guest users
+    - Moved the JWT verification logic to a separate file called lib/jwt.ts so we can reuse it
+    - Added role checking so we can differentiate between admin and regular users
+    - Updated all route handlers to use the new middleware functions
+    - Added unit tests for the new functions
+    - Updated documentation
+    
+    **Files changed:** middleware/auth.ts, lib/jwt.ts, tests/auth.test.ts, README.md
+    ```
+    
+    Too much detail. The stash is for context, not documentation.
+  </Tab>
+</Tabs>
+
+### Use consistent date format
+
+Always use `YYYY-MM-DD` for chronological sorting:
+
+```markdown
+## 2026-03-13 — Added notifications
+## 2026-03-10 — Refactored database layer
+## 2026-03-08 — Initial setup
+```
+
+<Info>
+This format sorts correctly in file managers and grep output.
+</Info>
+
+## Keeping Summaries Concise
+
+### File summaries: 3-5 lines max
+
+The goal is **recognition**, not **understanding**:
+
+<Tabs>
+  <Tab title="Concise (Good)">
+    ```markdown
+    **Purpose:** Stripe payment integration — checkout and webhook handling.
+    **Key exports:** createCheckoutSession(), handleWebhook()
+    **Patterns:** Async functions, Zod validation for webhook payload.
+    **Last updated:** 2026-03-13
+    ```
+    
+    4 lines. Enough for Claude to decide if it needs to read the full file.
+  </Tab>
+  
+  <Tab title="Too Detailed (Bad)">
+    ```markdown
+    **Purpose:** This file handles Stripe payment integration. It exports two main functions: createCheckoutSession which creates a new Stripe checkout session with the provided line items, and handleWebhook which processes incoming webhook events from Stripe. The webhook handler validates the signature, parses the event, and updates the database accordingly.
+    
+    **Key exports:** 
+    - createCheckoutSession(lineItems: LineItem[]): Promise<string>
+    - handleWebhook(req: Request): Promise<void>
+    
+    **Patterns:** Uses async/await throughout, validates webhook signatures with Stripe SDK, uses Zod schemas for type safety, follows repository pattern for database access.
+    
+    **Dependencies:** stripe, zod, prisma
+    
+    **Last updated:** 2026-03-13
+    ```
+    
+    Too long. This defeats the purpose — Claude might as well read the file.
+  </Tab>
+</Tabs>
+
+### Skip boilerplate
+
+Don't summarize files that are purely configuration or imports:
+
+<Accordion title="Skip these">
+- Empty files
+- Type-only files (no runtime code)
+- Pure config files (`tailwind.config.js`, `.eslintrc.json`)
+- Files with only imports/exports (barrel files)
+</Accordion>
+
+<Accordion title="Summarize these">
+- Business logic
+- API routes
+- Database models
+- Utility functions
+- React components
+</Accordion>
+
+## Global vs Project Stash
+
+### Use global stash for universal preferences
+
+`~/.claude/tokenstash/`:
+
+```markdown
+# preferences.md
+
+## Coding Style
+- Prefer functional programming over classes
+- Use early returns to reduce nesting
+- Extract magic numbers to named constants
+- Keep functions under 50 lines
+
+## Testing
+- Write tests alongside features (not after)
+- Use descriptive test names ("should return 404 when user not found")
+- Mock external services (APIs, database)
+
+## Documentation
+- Add JSDoc for public APIs
+- Keep README up to date
+- Document non-obvious decisions in code comments
+```
+
+<Tip>
+These apply to **all projects** — one-time setup, lifetime benefit.
+</Tip>
+
+### Use project stash for project-specific rules
+
+`<repo-root>/.tokenstash/`:
+
+```markdown
+# rules.md
+
+## This Project
+- Use Prisma for all database access (no raw SQL)
+- Validate inputs with Zod schemas
+- All API routes must have rate limiting
+- Log errors to Sentry
+- Use Server Components by default (Client Components only when needed)
+```
+
+<Info>
+Project rules **override** global rules when there's a conflict.
+</Info>
+
+## Git and .gitignore
+
+### Should you commit the stash?
+
+<Tabs>
+  <Tab title="Commit It">
+    **Pros:**
+    - Team shares context (everyone starts with the same knowledge)
+    - New contributors onboard faster
+    - Decision log serves as project history
+    
+    **Cons:**
+    - Adds noise to git history (stash updates frequently)
+    - Summaries may become stale if not maintained
+    
+    **Recommendation:**
+    
+    Commit `decisions.md`, `rules.md`, and `architecture.md`:
+    ```gitignore
+    # .gitignore
+    .tokenstash/files/
+    ```
+    
+    Keep file summaries local (they auto-update anyway).
+  </Tab>
+  
+  <Tab title="Keep It Local">
+    **Pros:**
+    - Cleaner git history
+    - No stale summaries in version control
+    - Each developer has their own context
+    
+    **Cons:**
+    - New contributors start from zero
+    - No shared decision history
+    
+    **Recommendation:**
+    
+    Add to `.gitignore`:
+    ```gitignore
+    .tokenstash/
+    ```
+    
+    Each developer runs `/stash-scan` on first checkout.
+  </Tab>
+</Tabs>
+
+### Recommended .gitignore
+
+For most teams:
+
+```gitignore
+# .tokenstash — keep docs, ignore file summaries
+.tokenstash/files/
+```
+
+This commits the high-value docs (`decisions.md`, `architecture.md`, `rules.md`) while keeping auto-generated summaries local.
+
+<Tip>
+Run `git add .tokenstash/*.md` to commit only the top-level docs.
+</Tip>
+
+## Handling Large Codebases
+
+### Files over 500 lines
+
+By default, `/stash-scan` skips files over 500 lines. You can manually summarize them:
+
+<Steps>
+  <Step title="Identify large files">
+    ```bash
+    find . -name "*.ts" -exec wc -l {} \; | sort -rn | head -20
+    ```
+  </Step>
+  
+  <Step title="Ask Claude to summarize">
+    ```
+    You: Summarize src/lib/massive-utils.ts
+    ```
+  </Step>
+  
+  <Step title="Save the summary manually">
+    Create `.tokenstash/files/src__lib__massive-utils.ts.md`:
+    ```markdown
+    **Purpose:** Kitchen sink utility library (needs refactoring).
+    **Key exports:** 50+ utility functions for strings, dates, arrays.
+    **Patterns:** Mostly pure functions, some stateful helpers.
+    **Last updated:** 2026-03-13
+    ```
+  </Step>
+</Steps>
+
+### Monorepos
+
+Each package gets its own stash:
+
+```bash
+monorepo/
+├── packages/
+│   ├── api/
+│   │   └── .tokenstash/
+│   ├── web/
+│   │   └── .tokenstash/
+│   └── shared/
+│       └── .tokenstash/
+```
+
+Run `/stash-scan` in each package directory.
+
+<Note>
+Global stash (`~/.claude/tokenstash/`) applies to all packages.
+</Note>
+
+## Maintenance
+
+### When to refresh
+
+<Accordion title="Monthly: Full re-scan">
+```
+/stash-scan --force
+```
+
+Ensure summaries reflect current state (catch any drift).
+</Accordion>
+
+<Accordion title="After major refactor: Update architecture">
+```
+/stash-save
+```
+
+Rewrite `architecture.md` to reflect new structure.
+</Accordion>
+
+<Accordion title="Quarterly: Prune decisions.md">
+Archive old decisions:
+
+```bash
+# Keep last 3 months, archive the rest
+mv .tokenstash/decisions.md .tokenstash/decisions-2025.md
+```
+
+Start fresh with recent context.
+</Accordion>
+
+### Stash health check
+
+Periodically verify:
+
+```bash
+# Check stash size
+du -sh .tokenstash/
+
+# Count file summaries
+ls .tokenstash/files/ | wc -l
+
+# View recent decisions
+tail -n 50 .tokenstash/decisions.md
+```
+
+<Info>
+Healthy stash: 50-200 KB, 50-500 file summaries, recent decisions within last month.
+</Info>
+
+## Common Pitfalls
+
+<Accordion title="Forgetting to run /stash-save">
+**Problem:** You work for 2 hours, close Claude, decisions are lost.
+
+**Solution:** Set a reminder or add to your end-of-day checklist.
+</Accordion>
+
+<Accordion title="Over-summarizing">
+**Problem:** File summaries are too detailed (10+ lines).
+
+**Solution:** Aim for 3-5 lines. If Claude needs more, it will read the file.
+</Accordion>
+
+<Accordion title="Committing file summaries to git">
+**Problem:** Git history is noisy with stash updates.
+
+**Solution:** Add `.tokenstash/files/` to `.gitignore`.
+</Accordion>
+
+<Accordion title="Never re-scanning">
+**Problem:** Stash diverges from reality after major changes.
+
+**Solution:** Run `/stash-scan` after big pulls or branch switches.
+</Accordion>
+
+<Accordion title="Ignoring global stash">
+**Problem:** Repeating the same preferences in every project.
+
+**Solution:** Use `~/.claude/tokenstash/preferences.md` for universal rules.
+</Accordion>
+
+## Quick Checklist
+
+<Steps>
+  <Step title="First time">
+    - Run `/stash-scan` in new projects
+    - Add `.tokenstash/files/` to `.gitignore`
+    - Create `~/.claude/tokenstash/preferences.md` with your coding style
+  </Step>
+  
+  <Step title="Daily">
+    - Let auto-updates handle file summaries (do nothing)
+    - Run `/stash-save` at end of session
+  </Step>
+  
+  <Step title="Weekly">
+    - After major git pulls: `/stash-scan`
+    - After branch switches: `/stash-scan --force`
+  </Step>
+  
+  <Step title="Monthly">
+    - Full refresh: `/stash-scan --force`
+    - Review and prune old decisions
+  </Step>
+</Steps>
+
+<Tip>
+The less you think about TokenStash, the better it's working.
+</Tip>

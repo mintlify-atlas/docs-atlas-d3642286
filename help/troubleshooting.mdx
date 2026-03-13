@@ -1,0 +1,285 @@
+---
+title: "Troubleshooting"
+description: "Common issues and solutions for TokenStash"
+icon: "wrench"
+---
+
+Running into issues? Find solutions to the most common TokenStash problems below.
+
+<Accordion title="Stash not loading at session start">
+  **Symptoms:** Claude starts a new session without any project context, as if TokenStash wasn't installed.
+
+  **Common causes:**
+  1. The SessionStart hook isn't registered or failed silently
+  2. No stash files exist yet in `.tokenstash/`
+  3. Git repository not detected
+
+  **Solutions:**
+
+  Check if TokenStash is properly installed:
+  ```bash
+  /plugin list
+  ```
+  You should see `tokenstash` in the list.
+
+  Verify the stash directory exists:
+  ```bash
+  ls -la .tokenstash/
+  ```
+
+  If `.tokenstash/` doesn't exist, run:
+  ```bash
+  /stash-scan
+  ```
+
+  Check that you're in a git repository:
+  ```bash
+  git rev-parse --show-toplevel
+  ```
+  TokenStash requires a git repository to determine the project root.
+
+  <Note>
+    The session-start hook looks for stash files at `<repo-root>/.tokenstash/` and `~/.claude/tokenstash/` (global). If neither exists, you'll see a message: "TokenStash: No stash found."
+  </Note>
+</Accordion>
+
+<Accordion title="Summaries not updating after edits">
+  **Symptoms:** You edit files but the summaries in `.tokenstash/files/` stay outdated.
+
+  **Common causes:**
+  1. PostToolUse hook not triggering
+  2. Auto-update skill not running
+  3. File path contains special characters that break the flattened naming
+
+  **Solutions:**
+
+  Manually trigger an update:
+  ```bash
+  /stash-save
+  ```
+  This will sweep through all files you edited this session and update their summaries.
+
+  Re-scan specific files:
+  ```bash
+  /stash-scan --force
+  ```
+  The `--force` flag overwrites all existing summaries.
+
+  Check if the hook is configured:
+  ```bash
+  cat .claude/plugins/tokenstash/hooks/hooks.json
+  ```
+  You should see a PostToolUse hook matching Write and Edit tools.
+
+  <Tip>
+    The auto-update hook runs asynchronously after Write/Edit operations. If you immediately check the stash, updates might not be visible yet. Wait a moment and check again.
+  </Tip>
+</Accordion>
+
+<Accordion title="/stash-scan fails or skips files">
+  **Symptoms:** `/stash-scan` completes but many files are missing from `.tokenstash/files/`.
+
+  **Common causes:**
+  1. Files are in excluded directories (node_modules, .git, dist, etc.)
+  2. Files are over 500 lines (skipped by design)
+  3. Binary files or non-text files
+  4. Permission issues reading files
+
+  **Solutions:**
+
+  Check what files are being scanned:
+  ```bash
+  find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/.tokenstash/*" -not -path "*/dist/*" -not -path "*/build/*" | head -20
+  ```
+
+  Files over 500 lines are intentionally skipped to keep summaries lightweight. These are noted in the scan output.
+
+  For excluded directories, this is by design:
+  - `.git/`, `node_modules/`, `.tokenstash/`, `dist/`, `build/`, `.next/`
+  - Binary files (images, fonts, compiled artifacts)
+
+  <Warning>
+    If you need to include specific large files or special directories, you'll need to modify the scan exclusion logic in the plugin's scan skill.
+  </Warning>
+
+  Force re-scan everything:
+  ```bash
+  /stash-scan --force
+  ```
+</Accordion>
+
+<Accordion title="Permission errors when writing to .tokenstash/">
+  **Symptoms:** Error messages about unable to write files to `.tokenstash/` directory.
+
+  **Common causes:**
+  1. Directory ownership issues
+  2. Read-only filesystem
+  3. Insufficient permissions in project directory
+
+  **Solutions:**
+
+  Check directory permissions:
+  ```bash
+  ls -ld .tokenstash/
+  ```
+
+  Fix ownership if needed:
+  ```bash
+  sudo chown -R $USER:$USER .tokenstash/
+  ```
+
+  Create directory manually with correct permissions:
+  ```bash
+  mkdir -p .tokenstash/files
+  chmod 755 .tokenstash
+  ```
+
+  <Note>
+    TokenStash creates `.tokenstash/` automatically on first use. If you're seeing permission errors, check if your project directory has restrictive permissions or is on a mounted filesystem.
+  </Note>
+</Accordion>
+
+<Accordion title="Git repository not found errors">
+  **Symptoms:** Error message "Not a git repository" or "fatal: not a git repository".
+
+  **Common causes:**
+  1. You're not in a git-initialized directory
+  2. Working in a subdirectory without git context
+  3. Git repository is corrupted
+
+  **Solutions:**
+
+  Initialize a git repository:
+  ```bash
+  git init
+  ```
+
+  Verify git status:
+  ```bash
+  git rev-parse --show-toplevel
+  ```
+  This should print the repository root path.
+
+  If you're in a subdirectory, ensure git can find the root:
+  ```bash
+  cd $(git rev-parse --show-toplevel)
+  ```
+
+  <Warning>
+    TokenStash requires a git repository to determine the project root. Without git, it cannot locate where to store the `.tokenstash/` directory.
+  </Warning>
+</Accordion>
+
+<Accordion title="How to verify hooks are running">
+  **Problem:** You're not sure if SessionStart or PostToolUse hooks are actually executing.
+
+  **Solutions:**
+
+  Check hook configuration:
+  ```bash
+  cat ~/.claude/plugins/tokenstash/hooks/hooks.json
+  ```
+
+  Test the SessionStart hook manually:
+  ```bash
+  bash ~/.claude/plugins/tokenstash/hooks/session-start
+  ```
+  This should output JSON with the stash context.
+
+  Test the PostToolUse hook manually:
+  ```bash
+  echo '{"tool_name":"Write","tool_input":{"file_path":"test.ts"}}' | bash ~/.claude/plugins/tokenstash/hooks/post-tool-use
+  ```
+  This should output JSON with a reminder to update the stash.
+
+  Check if stash context is being loaded:
+  At the start of a session, ask Claude: "What project context do you have?"
+  If TokenStash is working, Claude should mention architecture, decisions, and file summaries.
+
+  <Tip>
+    Hooks run automatically by Claude Code. If manual tests work but automatic execution doesn't, restart your Claude Code session or reinstall the plugin.
+  </Tip>
+</Accordion>
+
+<Accordion title="How to check stash contents manually">
+  **Problem:** You want to inspect or verify what's in your stash.
+
+  **Solutions:**
+
+  View project stash structure:
+  ```bash
+  tree .tokenstash/
+  ```
+
+  Or without tree:
+  ```bash
+  find .tokenstash -type f
+  ```
+
+  Read architecture overview:
+  ```bash
+  cat .tokenstash/architecture.md
+  ```
+
+  Read decision log:
+  ```bash
+  cat .tokenstash/decisions.md
+  ```
+
+  List all file summaries:
+  ```bash
+  ls -1 .tokenstash/files/
+  ```
+
+  View a specific file summary:
+  ```bash
+  cat .tokenstash/files/src__lib__utils.md
+  ```
+  Note: Path separators `/` are replaced with `__` in filenames.
+
+  Check global stash:
+  ```bash
+  ls -la ~/.claude/tokenstash/
+  ```
+
+  <Note>
+    All stash files are plain markdown - feel free to read, edit, or version control them as needed.
+  </Note>
+</Accordion>
+
+<Accordion title="Stash context too large / token overflow">
+  **Symptoms:** Session starts slowly or fails with context length errors.
+
+  **Common causes:**
+  1. Too many file summaries accumulated
+  2. Very detailed architecture or decision logs
+  3. Large number of small files in the project
+
+  **Solutions:**
+
+  Check stash size:
+  ```bash
+  du -sh .tokenstash/
+  find .tokenstash/files -name "*.md" | wc -l
+  ```
+
+  Clear and rebuild selectively:
+  ```bash
+  /stash-clear
+  /stash-scan
+  ```
+
+  Manually prune old file summaries:
+  ```bash
+  rm .tokenstash/files/obsolete__file.md
+  ```
+
+  Keep decisions.md concise - archive old entries:
+  ```bash
+  mv .tokenstash/decisions.md .tokenstash/decisions-archive.md
+  ```
+
+  <Tip>
+    File summaries are designed to be 3-5 lines each. If you have 100+ files, that's normal. If you're hitting limits, focus on summarizing only the most important modules.
+  </Tip>
+</Accordion>

@@ -1,0 +1,297 @@
+---
+title: "FAQ"
+description: "Frequently asked questions about TokenStash"
+icon: "question"
+---
+
+Common questions about using TokenStash with Claude Code.
+
+<Accordion title="Should I commit .tokenstash/ to git?">
+  **Short answer:** Your choice — it's safe either way.
+
+  **Committing it:**
+  - **Pros:** Team members share context instantly, consistent stash across machines, version controlled
+  - **Cons:** Adds files to repo, may diverge between branches
+
+  **Not committing it (add to .gitignore):**
+  - **Pros:** Keeps repo clean, everyone maintains their own perspective
+  - **Cons:** Each developer must run `/stash-scan` on first clone
+
+  The stash contains summaries, not code — no security risk. If you work in a team and want shared context, commit it. If you prefer individual perspectives, add to `.gitignore`:
+
+  ```gitignore
+  .tokenstash/
+  ```
+
+  <Tip>
+    Many teams commit `architecture.md` and `rules.md` but gitignore `files/` to balance shared context with individual preference.
+  </Tip>
+</Accordion>
+
+<Accordion title="How much does the stash cost in tokens?">
+  **It depends on project size**, but typically:
+
+  - **architecture.md:** 200-500 tokens
+  - **decisions.md:** 50-200 tokens per session entry
+  - **rules.md:** 100-300 tokens
+  - **File summaries:** ~50 tokens per file (3-5 lines each)
+
+  **Example:** A 100-file project might use:
+  - 500 tokens (architecture)
+  - 300 tokens (decisions)
+  - 200 tokens (rules)
+  - 5,000 tokens (100 files × 50 tokens)
+  - **~6,000 tokens total**
+
+  That's roughly 5-10% of Claude's context window, leaving 95% for actual conversation.
+
+  <Note>
+    File summaries are intentionally kept to 3-5 lines to minimize token cost while maximizing context value. The goal is "just enough to skip re-reading the file."
+  </Note>
+
+  **Cost vs. benefit:**
+  Loading 100 file summaries (5,000 tokens) is far cheaper than re-reading 100 files (potentially 50,000+ tokens) every session.
+</Accordion>
+
+<Accordion title="Does it work with non-git projects?">
+  **No, TokenStash requires a git repository.**
+
+  TokenStash uses `git rev-parse --show-toplevel` to find the project root and determine where to store `.tokenstash/`. Without git, it can't locate the correct directory.
+
+  **Workaround:**
+  Initialize git in your project:
+  ```bash
+  git init
+  ```
+
+  You don't need to commit anything or use git for version control — TokenStash just needs the git repository structure to find the root.
+
+  <Warning>
+    If you're working in a subdirectory of a larger repo, TokenStash will store the stash at the repository root, not your subdirectory.
+  </Warning>
+</Accordion>
+
+<Accordion title="Can I edit stash files manually?">
+  **Yes! All stash files are plain markdown.**
+
+  You can edit them directly:
+  ```bash
+  # Edit architecture overview
+  code .tokenstash/architecture.md
+
+  # Edit a file summary
+  code .tokenstash/files/src__lib__utils.md
+
+  # Add custom rules
+  code .tokenstash/rules.md
+  ```
+
+  Manual edits are useful for:
+  - Adding project-specific rules or conventions
+  - Correcting auto-generated summaries
+  - Documenting non-code context (team structure, deployment process, etc.)
+  - Pruning outdated decision log entries
+
+  <Tip>
+    The auto-update hook will overwrite file summaries after edits. If you want permanent manual summaries, consider adding them to `architecture.md` or `rules.md` instead.
+  </Tip>
+</Accordion>
+
+<Accordion title="What happens if I delete a stashed file?">
+  **The summary remains until you clean it up manually.**
+
+  If you delete `src/lib/utils.ts`, the summary `.tokenstash/files/src__lib__utils.md` won't be automatically removed.
+
+  **Cleanup options:**
+
+  1. **Full rebuild** (recommended):
+     ```bash
+     /stash-clear
+     /stash-scan
+     ```
+
+  2. **Manual removal:**
+     ```bash
+     rm .tokenstash/files/src__lib__utils.md
+     ```
+
+  3. **Let it age out:** Old summaries are mostly harmless. Claude will just learn about a file that no longer exists.
+
+  <Note>
+    The auto-update skill (post-tool-use hook) does detect file deletions and removes summaries automatically — but only if you delete the file through Claude's Write/Edit tools, not manually via terminal.
+  </Note>
+</Accordion>
+
+<Accordion title="How to migrate stash between machines?">
+  **If `.tokenstash/` is committed to git:**
+  Just clone the repo — the stash comes with it.
+
+  **If `.tokenstash/` is gitignored:**
+
+  1. **Copy manually:**
+     ```bash
+     # On old machine
+     tar -czf tokenstash-backup.tar.gz .tokenstash/
+
+     # Transfer to new machine
+     scp tokenstash-backup.tar.gz newmachine:/path/to/project/
+
+     # On new machine
+     tar -xzf tokenstash-backup.tar.gz
+     ```
+
+  2. **Rebuild on new machine:**
+     ```bash
+     /stash-scan
+     ```
+     This regenerates file summaries but loses decision history. If you want to preserve decisions, copy `.tokenstash/decisions.md` manually.
+
+  **Global stash:**
+  Your global preferences/rules are stored in `~/.claude/tokenstash/`. Copy this directory to new machines if you want consistent global context.
+
+  <Tip>
+    For teams, committing `.tokenstash/` to git is the easiest way to keep everyone in sync.
+  </Tip>
+</Accordion>
+
+<Accordion title="Performance with large codebases">
+  **TokenStash is designed for codebases with 100-1,000 files.**
+
+  **Performance characteristics:**
+
+  - **Session start:** Nearly instant (just reads markdown files)
+  - **Auto-update:** Async, no noticeable delay
+  - **Full scan (`/stash-scan`):** 1-5 seconds per 100 files
+  - **Token cost:** ~50 tokens per file summary
+
+  **Large codebase strategies:**
+
+  1. **Selective scanning:**
+     Manually scan only important directories:
+     ```bash
+     # Only scan src/ directory
+     find src -type f -name "*.ts" -exec /stash-scan {} \;
+     ```
+
+  2. **Skip large files:**
+     Files over 500 lines are automatically skipped. This prevents bloat.
+
+  3. **Archive old decisions:**
+     Keep `decisions.md` concise by moving old entries to archive files:
+     ```bash
+     # Keep only last 10 sessions
+     tail -n 200 .tokenstash/decisions.md > temp.md
+     mv temp.md .tokenstash/decisions.md
+     ```
+
+  4. **Focus on architecture:**
+     Instead of summarizing every file, maintain a detailed `architecture.md` with module-level descriptions.
+
+  <Warning>
+    Projects with 10,000+ files may hit context limits. In these cases, focus on core modules and use `architecture.md` to document the overall structure rather than per-file summaries.
+  </Warning>
+</Accordion>
+
+<Accordion title="Does TokenStash work with monorepos?">
+  **Partially — it works at the repository root level.**
+
+  In a monorepo with structure like:
+  ```
+  monorepo/
+  ├── packages/
+  │   ├── app-a/
+  │   ├── app-b/
+  │   └── shared/
+  └── .tokenstash/
+  ```
+
+  TokenStash will create a single `.tokenstash/` at the repo root covering all packages.
+
+  **Workarounds for per-package stashes:**
+
+  1. **Manual organization:**
+     Use subdirectories in architecture.md:
+     ```markdown
+     ## Package: app-a
+     [architecture for app-a]
+
+     ## Package: app-b
+     [architecture for app-b]
+     ```
+
+  2. **Separate git repos:**
+     Use git submodules or separate repos for each package if you need isolated stashes.
+
+  <Note>
+    Most monorepo teams benefit from a unified stash that covers shared dependencies and cross-package patterns.
+  </Note>
+</Accordion>
+
+<Accordion title="Can I use TokenStash with other AI tools?">
+  **TokenStash is built specifically for Claude Code plugins.**
+
+  However, the stash files are plain markdown — you can manually inject them into other tools:
+
+  **Cursor/Copilot:**
+  Add to your project's context:
+  ```bash
+  cat .tokenstash/architecture.md >> .cursorrules
+  ```
+
+  **Custom scripts:**
+  Read stash files programmatically:
+  ```python
+  import os
+  with open('.tokenstash/architecture.md') as f:
+      context = f.read()
+  # Inject into your AI tool's prompt
+  ```
+
+  **Claude API:**
+  Load stash as system context:
+  ```python
+  import anthropic
+  client = anthropic.Anthropic()
+
+  with open('.tokenstash/architecture.md') as f:
+      stash_context = f.read()
+
+  message = client.messages.create(
+      model="claude-3-5-sonnet-20241022",
+      system=stash_context,
+      messages=[{"role": "user", "content": "..."}]
+  )
+  ```
+
+  <Tip>
+    If you want automatic injection with other tools, you'll need to write custom integration scripts — TokenStash's hooks are Claude Code-specific.
+  </Tip>
+</Accordion>
+
+<Accordion title="How to reset everything and start fresh?">
+  **Clear project stash:**
+  ```bash
+  /stash-clear
+  ```
+  This prompts for confirmation, then deletes `.tokenstash/` in your project.
+
+  **Clear global stash:**
+  ```bash
+  rm -rf ~/.claude/tokenstash/
+  ```
+
+  **Rebuild from scratch:**
+  ```bash
+  /stash-scan
+  ```
+
+  **Full reinstall:**
+  ```bash
+  /plugin uninstall tokenstash
+  /plugin install tokenstash@tokenstash
+  ```
+
+  <Warning>
+    Clearing the stash deletes your decision log and architecture documentation. Consider backing up `decisions.md` and `architecture.md` if they contain valuable context.
+  </Warning>
+</Accordion>

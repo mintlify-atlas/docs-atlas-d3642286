@@ -1,0 +1,339 @@
+---
+title: Global vs Project Stash
+description: Understanding the two-tier stash hierarchy
+icon: layer-group
+---
+
+TokenStash uses a two-tier hierarchy: **global** stash for personal preferences and **project** stash for repo-specific context. The SessionStart hook loads both, with project stash taking priority.
+
+## Stash Locations
+
+<CodeGroup>
+```bash Global Stash
+~/.claude/tokenstash/
+├── preferences.md    # Your personal coding preferences
+└── rules.md          # Your universal coding rules
+```
+
+```bash Project Stash
+<repo-root>/.tokenstash/
+├── architecture.md   # Project architecture overview
+├── decisions.md      # Session-by-session decision log
+├── rules.md          # Project-specific coding rules
+└── files/            # File summaries (auto-generated)
+    ├── src__app.tsx.md
+    ├── src__lib__utils.ts.md
+    └── ...
+```
+</CodeGroup>
+
+## Global Stash
+
+**Location:** `~/.claude/tokenstash/`
+
+The global stash contains **personal preferences** that apply across all projects.
+
+### What Goes Here
+
+<CardGroup cols={2}>
+  <Card title="preferences.md" icon="user">
+    Your coding style, preferred patterns, and workflow preferences
+  </Card>
+  <Card title="rules.md" icon="gavel">
+    Universal coding rules you follow in every project
+  </Card>
+</CardGroup>
+
+### Example: preferences.md
+
+```markdown ~/.claude/tokenstash/preferences.md
+# My Coding Preferences
+
+## Code Style
+- Prefer functional components over class components (React)
+- Use TypeScript strict mode always
+- Prefer explicit types over inference for public APIs
+
+## Testing
+- Write tests before implementation (TDD)
+- Prefer integration tests over unit tests
+- Use Jest for testing, avoid Mocha
+
+## Documentation
+- Use JSDoc for all exported functions
+- Include usage examples in comments
+- Keep comments short and to the point
+```
+
+### Example: rules.md
+
+```markdown ~/.claude/tokenstash/rules.md
+# Universal Coding Rules
+
+- Never use `any` in TypeScript — use `unknown` instead
+- Always handle errors explicitly — no silent catches
+- No magic numbers — use named constants
+- One file per component/function — no mega files
+- DRY: If you copy-paste code twice, extract a function
+```
+
+<Info>
+**Create once, use everywhere.** Global stash is loaded for every project, so you don't repeat your preferences in every repo.
+</Info>
+
+## Project Stash
+
+**Location:** `<repo-root>/.tokenstash/`
+
+The project stash contains **repo-specific context** that changes as you work.
+
+### What Goes Here
+
+<CardGroup cols={2}>
+  <Card title="architecture.md" icon="sitemap">
+    High-level overview of the project structure and patterns
+  </Card>
+  <Card title="decisions.md" icon="book">
+    Session-by-session log of decisions and changes
+  </Card>
+  <Card title="rules.md" icon="gavel">
+    Project-specific coding rules (overrides global rules)
+  </Card>
+  <Card title="files/" icon="folder">
+    Auto-generated summaries of individual files
+  </Card>
+</CardGroup>
+
+### Example: architecture.md
+
+```markdown .tokenstash/architecture.md
+## Architecture Overview
+This is a Next.js 14 app using the App Router with server components. Data fetching happens server-side, and client components are used sparingly for interactivity.
+
+## Key Components
+- `app/`: Next.js 14 App Router pages and layouts
+- `components/`: Reusable UI components (server and client)
+- `lib/`: Utilities, API clients, and business logic
+- `hooks/`: Custom React hooks (client-side only)
+
+## Patterns
+- Server components by default, client components marked with "use client"
+- Tailwind CSS for styling, no CSS-in-JS
+- Zod for runtime validation of API responses
+
+## Tech Stack
+- Next.js 14, React 18, TypeScript 5
+- Tailwind CSS, shadcn/ui components
+- Prisma ORM, PostgreSQL database
+```
+
+### Example: decisions.md
+
+```markdown .tokenstash/decisions.md
+## 2026-03-13 — Refactored auth flow to use server actions
+
+**Decisions:**
+- Moved authentication logic from API routes to server actions
+- Store session in HTTP-only cookies instead of localStorage
+- Use NextAuth.js for OAuth providers
+
+**Files changed:** app/actions/auth.ts, app/api/auth/[...nextauth]/route.ts, lib/session.ts
+
+## 2026-03-12 — Added file upload with S3
+
+**Decisions:**
+- Use AWS S3 for file storage instead of local filesystem
+- Generate presigned URLs for secure uploads
+- Store file metadata in PostgreSQL
+
+**Files changed:** app/api/upload/route.ts, lib/s3.ts, prisma/schema.prisma
+```
+
+### Example: files/
+
+```markdown .tokenstash/files/lib__auth.ts.md
+**Purpose:** Handles user authentication and session management.
+**Key exports:** `signIn`, `signOut`, `getSession`, `requireAuth`
+**Patterns:** Uses NextAuth.js with custom callbacks for JWT and session.
+**Last updated:** 2026-03-13
+```
+
+<Note>
+**Committed to git?** You can commit `.tokenstash/` to share project context with your team, or add it to `.gitignore` to keep it local.
+</Note>
+
+## Priority and Override Behavior
+
+When both global and project stash exist, the SessionStart hook loads **both**, with project stash taking priority.
+
+### Loading Order
+
+<Steps>
+  <Step title="Load Global Stash">
+    SessionStart hook reads `~/.claude/tokenstash/preferences.md` and `rules.md`
+  </Step>
+  <Step title="Load Project Stash">
+    SessionStart hook reads `<repo-root>/.tokenstash/architecture.md`, `decisions.md`, and `rules.md`
+  </Step>
+  <Step title="Load File Summaries">
+    SessionStart hook reads all `.md` files in `<repo-root>/.tokenstash/files/`
+  </Step>
+  <Step title="Inject Context">
+    All content is wrapped in `<tokenstash>` tags and injected into Claude's context
+  </Step>
+</Steps>
+
+### Override Behavior
+
+If both global and project stash have `rules.md`, **both are loaded**. Claude sees:
+
+```xml
+<tokenstash>
+## Global: rules.md
+[global rules content]
+
+## Project: rules.md
+[project rules content]
+
+...
+</tokenstash>
+```
+
+Claude prioritizes project rules when there's a conflict, but sees both sets of rules.
+
+### Implementation Details
+
+From `hooks/session-start` (lines 36-53):
+
+```bash hooks/session-start:36-53
+# Load global stash
+if [ -d "$GLOBAL_STASH_DIR" ]; then
+    for f in preferences.md rules.md; do
+        fpath="$GLOBAL_STASH_DIR/$f"
+        if [ -f "$fpath" ]; then
+            context+="## Global: $f\n$(cat "$fpath")\n\n"
+        fi
+    done
+fi
+
+# Load project stash (takes priority)
+if [ -d "$PROJECT_STASH_DIR" ]; then
+    for f in architecture.md decisions.md rules.md; do
+        fpath="$PROJECT_STASH_DIR/$f"
+        if [ -f "$fpath" ]; then
+            context+="## Project: $f\n$(cat "$fpath")\n\n"
+        fi
+    done
+```
+
+<Info>
+**Labeled clearly:** Global and project stash files are prefixed with `## Global:` and `## Project:` so Claude knows the source.
+</Info>
+
+## Use Cases
+
+<Tabs>
+  <Tab title="Global Stash">
+    ### When to Use Global Stash
+
+    - **Personal coding style:** Your preferred patterns and conventions
+    - **Universal rules:** Rules that apply to all your projects
+    - **Tool preferences:** Your favorite libraries, frameworks, and tools
+    - **Workflow preferences:** How you like to structure commits, tests, etc.
+
+    ### What NOT to Put in Global Stash
+
+    - Project-specific architecture or decisions
+    - File summaries (always project-specific)
+    - Team conventions (use project stash instead)
+    - Client-specific requirements
+  </Tab>
+  <Tab title="Project Stash">
+    ### When to Use Project Stash
+
+    - **Project architecture:** Structure, patterns, and tech stack
+    - **Decision log:** Session-by-session history of changes
+    - **Project rules:** Conventions specific to this repo or team
+    - **File summaries:** Auto-generated context about individual files
+
+    ### What NOT to Put in Project Stash
+
+    - Personal preferences (use global stash instead)
+    - Secrets or credentials (use `.env` or secrets manager)
+    - Generated code or artifacts (tracked by version control)
+  </Tab>
+</Tabs>
+
+## Example Session Flow
+
+1. **You start a session in a new project:**
+   - SessionStart hook loads `~/.claude/tokenstash/preferences.md` and `rules.md`
+   - No project stash exists yet
+   - Claude sees: "TokenStash: No stash found. Run /stash-scan to index this project."
+
+2. **You run `/stash-scan`:**
+   - Scan skill creates `<repo-root>/.tokenstash/`
+   - Writes `architecture.md` and file summaries
+   - Next session, Claude loads both global and project stash
+
+3. **You edit a file:**
+   - PostToolUse hook triggers
+   - Auto-update skill updates `.tokenstash/files/<file>.md`
+   - Next session, Claude sees the updated summary
+
+4. **You run `/stash-save`:**
+   - Save skill appends to `decisions.md`
+   - Updates `architecture.md` if structure changed
+   - Next session, Claude sees the full history
+
+<Note>
+**First session:** Global stash is available immediately. Project stash requires running `/stash-scan` once.
+</Note>
+
+## Finding Stash Locations
+
+The SessionStart hook finds stash directories automatically:
+
+```bash hooks/session-start:7-20
+# Support test overrides
+if [ -n "${TOKENSTASH_TEST_DIR:-}" ]; then
+    GLOBAL_STASH_DIR="${TOKENSTASH_TEST_DIR}/global"
+else
+    GLOBAL_STASH_DIR="${HOME}/.claude/tokenstash"
+fi
+
+# Find project stash: use test override or find git repo root
+if [ -n "${TOKENSTASH_TEST_PROJECT_DIR:-}" ]; then
+    PROJECT_STASH_DIR="$TOKENSTASH_TEST_PROJECT_DIR"
+else
+    GIT_ROOT=$(git -C "${PWD}" rev-parse --show-toplevel 2>/dev/null || echo "")
+    PROJECT_STASH_DIR="${GIT_ROOT}/.tokenstash"
+fi
+```
+
+- **Global:** Always `~/.claude/tokenstash/`
+- **Project:** Uses `git rev-parse --show-toplevel` to find repo root
+
+<Warning>
+**Not a git repo?** If you're not in a git repository, the project stash will not be found. TokenStash is designed for git-tracked projects.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Start with Global Stash">
+    Create `~/.claude/tokenstash/preferences.md` with your coding style. It's available in every project immediately.
+  </Accordion>
+  <Accordion title="Run /stash-scan Early">
+    Run `/stash-scan` when you start working on a new project. It builds the project stash once, then auto-updates as you work.
+  </Accordion>
+  <Accordion title="Commit .tokenstash/ for Teams">
+    If you're working with a team, commit `.tokenstash/` to git. Everyone gets the same context.
+  </Accordion>
+  <Accordion title="Gitignore .tokenstash/ for Solo Work">
+    If it's a personal project, add `.tokenstash/` to `.gitignore` to keep it local.
+  </Accordion>
+  <Accordion title="Use Project rules.md for Overrides">
+    If a project has unique conventions, create `.tokenstash/rules.md` to override your global rules for this repo.
+  </Accordion>
+</AccordionGroup>

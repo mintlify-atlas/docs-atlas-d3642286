@@ -1,0 +1,363 @@
+---
+title: '/stash-scan'
+description: 'Scan the repository and build the full TokenStash index'
+---
+
+The `/stash-scan` command analyzes your entire repository and creates a comprehensive knowledge base in `.tokenstash/`. Use it for initial setup or after major refactors.
+
+## What It Does
+
+When you run `/stash-scan`, TokenStash:
+
+1. **Finds your repository root** using `git rev-parse --show-toplevel`
+2. **Discovers all source files** (excluding dependencies, build artifacts, and binaries)
+3. **Summarizes each file** and writes to `.tokenstash/files/<filename>.md`
+4. **Generates architecture.md** based on the overall codebase structure
+5. **Reports results** showing how many files were processed
+
+<Warning>
+  Scanning is slow on large repositories (thousands of files). Use `/stash-save` for incremental updates during normal development.
+</Warning>
+
+## When to Use It
+
+### First-Time Setup
+
+Run `/stash-scan` when using TokenStash on a project for the first time:
+
+```bash
+/stash-scan
+```
+
+This builds the initial `.tokenstash/` structure.
+
+### After Major Refactoring
+
+Run with `--force` after significant restructuring:
+
+```bash
+/stash-scan --force
+```
+
+This rewrites all file summaries to reflect current state.
+
+### When Summaries Are Stale
+
+If you've made many changes outside of Claude sessions (manual edits, merges, rebases), rescan to refresh:
+
+```bash
+/stash-scan --force
+```
+
+<Note>
+  Without `--force`, scan skips files that already have summaries. Use `--force` to overwrite everything.
+</Note>
+
+## The --force Flag
+
+### Default Behavior (No Flag)
+
+```bash
+/stash-scan
+```
+
+- Scans only files **without existing summaries** in `.tokenstash/files/`
+- Fast for incremental updates
+- Preserves manually edited summaries
+- Use for initial setup or adding new files
+
+### With --force
+
+```bash
+/stash-scan --force
+```
+
+- Rescans **ALL files**, overwriting existing summaries
+- Slow on large repositories
+- Destroys manual edits to file summaries
+- Use after major refactors or when summaries are stale
+
+<Warning>
+  `--force` overwrites all file summaries, including any manual edits you made. Use it only when necessary.
+</Warning>
+
+## What Files Are Scanned
+
+TokenStash discovers all files in your repository, with these exclusions:
+
+### Excluded Directories
+
+- `.git/` — Git internals
+- `node_modules/` — Node.js dependencies
+- `.tokenstash/` — The stash itself
+- `dist/`, `build/`, `out/` — Build artifacts
+- `.next/`, `.nuxt/` — Framework build caches
+- `vendor/` — Dependency directories in other languages
+- `__pycache__/`, `.pytest_cache/` — Python caches
+
+### Excluded Files
+
+- **Binary files:** Images (`.png`, `.jpg`, `.gif`), fonts, compiled binaries
+- **Large files:** Files over 500 lines are skipped with a note
+- **Lock files:** `package-lock.json`, `yarn.lock`, `Gemfile.lock`, etc.
+- **Minified files:** `.min.js`, `.min.css`
+
+<Note>
+  Files over 500 lines are skipped to keep summaries manageable. These files are noted in the scan output.
+</Note>
+
+## What Gets Created
+
+### 1. File Summaries (.tokenstash/files/)
+
+One markdown file per source file, named with flattened paths:
+
+```
+.tokenstash/files/
+├── src-index-ts.md
+├── src-components-Button-tsx.md
+├── src-utils-formatDate-ts.md
+└── tests-unit-auth-test-ts.md
+```
+
+Each summary contains:
+
+```markdown
+**Purpose:** One-sentence description of what the file does.
+
+**Key exports:** 
+- `mainFunction()` — What it does
+- `HelperClass` — What it's for
+- `CONSTANT_VALUE` — What it represents
+
+**Patterns:** 
+- Notable patterns, techniques, or dependencies used
+- Architectural decisions visible in this file
+
+**Last updated:** 2026-03-13
+```
+
+### 2. Architecture Overview (.tokenstash/architecture.md)
+
+High-level codebase overview:
+
+```markdown
+## Architecture Overview
+Next.js application with TypeScript. React components in /components, 
+API routes in /pages/api. Tailwind for styling. Prisma for database.
+
+## Key Components
+- `src/components/`: Reusable React components
+- `src/pages/`: Next.js pages and API routes
+- `src/lib/`: Shared utilities and helpers
+- `src/hooks/`: Custom React hooks
+- `prisma/`: Database schema and migrations
+
+## Patterns
+- Server components for data fetching
+- Client components marked with 'use client'
+- API routes follow REST conventions
+- Zod for runtime type validation
+
+## Tech Stack
+- Next.js 14 (App Router)
+- React 18
+- TypeScript
+- Tailwind CSS
+- Prisma + PostgreSQL
+```
+
+## Examples
+
+### Initial Scan
+
+<CodeGroup>
+```bash Terminal
+/stash-scan
+```
+
+```plaintext Output
+Scanning repository...
+
+Found 247 files
+Skipped 12 files (over 500 lines)
+Excluded node_modules/, dist/, .git/
+
+Summarizing files...
+[====================] 247/247
+
+Wrote 247 file summaries to .tokenstash/files/
+Wrote architecture overview to .tokenstash/architecture.md
+
+TokenStash scan complete!
+```
+</CodeGroup>
+
+### Force Rescan
+
+<CodeGroup>
+```bash Terminal
+/stash-scan --force
+```
+
+```plaintext Output
+Scanning repository with --force (will overwrite existing summaries)...
+
+Found 247 files
+Skipped 12 files (over 500 lines)
+Excluded node_modules/, dist/, .git/
+
+Resummarizing ALL files...
+[====================] 247/247
+
+Overwrote 247 file summaries in .tokenstash/files/
+Rewrote architecture overview in .tokenstash/architecture.md
+
+TokenStash scan complete!
+```
+</CodeGroup>
+
+### Incremental Scan (New Files Only)
+
+After adding new files to your project:
+
+<CodeGroup>
+```bash Terminal
+# Added new files src/auth/oauth.ts and src/auth/providers.ts
+/stash-scan
+```
+
+```plaintext Output
+Scanning repository...
+
+Found 249 files
+245 files already have summaries (skipping)
+4 new files to summarize
+
+Summarizing new files...
+[====================] 4/4
+
+Wrote 4 new file summaries to .tokenstash/files/
+Updated architecture.md to include new auth modules
+
+TokenStash scan complete!
+```
+</CodeGroup>
+
+## Real-World Workflow
+
+<Steps>
+  <Step title="Clone or start a new project">
+    ```bash
+    git clone https://github.com/yourname/project.git
+    cd project
+    ```
+  </Step>
+  
+  <Step title="Run initial scan">
+    ```bash
+    /stash-scan
+    ```
+    This creates `.tokenstash/` with complete project knowledge.
+  </Step>
+  
+  <Step title="Work on your project">
+    Make changes, add features, fix bugs. Use `/stash-save` at the end of sessions.
+  </Step>
+  
+  <Step title="Rescan after major changes">
+    After significant refactoring or merging large branches:
+    ```bash
+    /stash-scan --force
+    ```
+  </Step>
+</Steps>
+
+## Performance Considerations
+
+### Scan Time by Repository Size
+
+| Repository Size | Approximate Scan Time | Recommendation |
+|-----------------|----------------------|----------------|
+| Small (< 100 files) | 30 seconds - 1 minute | Scan freely |
+| Medium (100-500 files) | 2-5 minutes | Use `/stash-save` for daily work |
+| Large (500-2000 files) | 10-20 minutes | Scan only when necessary |
+| Very Large (> 2000 files) | 30+ minutes | Consider scanning subdirectories |
+
+<Note>
+  For very large repositories, you may want to manually run scan on specific directories or exclude large subsections that change infrequently.
+</Note>
+
+## Comparison with /stash-save
+
+| Feature | /stash-scan | /stash-save |
+|---------|-------------|-------------|
+| **Speed** | Slow (entire repo) | Fast (only edited files) |
+| **Scope** | All source files | Files you read/edited this session |
+| **Creates decisions.md** | No | Yes |
+| **Updates architecture.md** | Always | Only if structure changed |
+| **When to use** | Setup, major refactors | Daily development, end of session |
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Scan once, save often">
+    Run `/stash-scan` for initial setup, then use `/stash-save` for daily work. Save is much faster and captures decisions.
+  </Accordion>
+
+  <Accordion title="Use --force sparingly">
+    Only use `--force` when you know summaries are stale. It's slow and overwrites manual edits.
+  </Accordion>
+
+  <Accordion title="Exclude generated code">
+    If your repo has generated code (GraphQL schemas, Prisma client, etc.), add those directories to `.gitignore` and they'll be automatically excluded.
+  </Accordion>
+
+  <Accordion title="Review architecture.md after scan">
+    Check `.tokenstash/architecture.md` after initial scan to ensure it captured your codebase structure accurately. Edit if needed.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Scan is too slow">
+    For very large repositories:
+    - Exclude unnecessary directories in `.gitignore`
+    - Skip large auto-generated files
+    - Consider splitting into smaller scans by directory
+    - Use `/stash-save` for daily work instead
+  </Accordion>
+
+  <Accordion title="Missing expected files">
+    Check if files are:
+    - In excluded directories (node_modules, dist, etc.)
+    - Over 500 lines (skipped with a note)
+    - Binary files (images, fonts, etc.)
+    
+    Review scan output for "Skipped" messages.
+  </Accordion>
+
+  <Accordion title="Git repo not found">
+    `/stash-scan` requires a git repository. Initialize one if needed:
+    ```bash
+    git init
+    /stash-scan
+    ```
+  </Accordion>
+
+  <Accordion title="Want to manually edit summaries">
+    After scan, you can manually edit any file in `.tokenstash/files/` to improve summaries. Just don't run `/stash-scan --force` or your edits will be overwritten.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Save Command" icon="floppy-disk" href="/commands/stash-save">
+    Learn about incremental session saves
+  </Card>
+  <Card title="Clear Command" icon="trash" href="/commands/stash-clear">
+    When to wipe and rebuild
+  </Card>
+</CardGroup>

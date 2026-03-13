@@ -1,0 +1,291 @@
+---
+title: Hooks System
+description: How TokenStash hooks inject context automatically
+icon: webhook
+---
+
+TokenStash uses Claude Code's hook system to automatically inject context at key moments in your session. Hooks run shell scripts that load stash files and build context dynamically.
+
+## Hook Configuration
+
+Hooks are defined in `hooks/hooks.json` and trigger on specific events:
+
+```json hooks/hooks.json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' session-start",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' post-tool-use",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## SessionStart Hook
+
+The SessionStart hook runs **synchronously** when you start, resume, clear, or compact a session. It loads all stash files and injects them as context.
+
+### What It Does
+
+1. **Finds stash locations:**
+   - Global stash: `~/.claude/tokenstash/`
+   - Project stash: `<git-root>/.tokenstash/`
+
+2. **Loads stash files:**
+   - Global: `preferences.md`, `rules.md`
+   - Project: `architecture.md`, `decisions.md`, `rules.md`
+   - Project file summaries: `.tokenstash/files/*.md`
+
+3. **Builds context:**
+   - Wraps content in `<tokenstash>` tags
+   - Returns JSON with `additional_context` field
+   - Claude receives this context before processing your first message
+
+### Full Implementation
+
+<CodeGroup>
+```bash hooks/session-start
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Support test overrides
+if [ -n "${TOKENSTASH_TEST_DIR:-}" ]; then
+    GLOBAL_STASH_DIR="${TOKENSTASH_TEST_DIR}/global"
+else
+    GLOBAL_STASH_DIR="${HOME}/.claude/tokenstash"
+fi
+
+# Find project stash: use test override or find git repo root
+if [ -n "${TOKENSTASH_TEST_PROJECT_DIR:-}" ]; then
+    PROJECT_STASH_DIR="$TOKENSTASH_TEST_PROJECT_DIR"
+else
+    GIT_ROOT=$(git -C "${PWD}" rev-parse --show-toplevel 2>/dev/null || echo "")
+    PROJECT_STASH_DIR="${GIT_ROOT}/.tokenstash"
+fi
+
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# Build context from stash files
+context=""
+
+# Load global stash
+if [ -d "$GLOBAL_STASH_DIR" ]; then
+    for f in preferences.md rules.md; do
+        fpath="$GLOBAL_STASH_DIR/$f"
+        if [ -f "$fpath" ]; then
+            context+="## Global: $f\n$(cat "$fpath")\n\n"
+        fi
+    done
+fi
+
+# Load project stash (takes priority)
+if [ -d "$PROJECT_STASH_DIR" ]; then
+    for f in architecture.md decisions.md rules.md; do
+        fpath="$PROJECT_STASH_DIR/$f"
+        if [ -f "$fpath" ]; then
+            context+="## Project: $f\n$(cat "$fpath")\n\n"
+        fi
+    done
+    # Load file summaries
+    if [ -d "$PROJECT_STASH_DIR/files" ]; then
+        file_count=$(find "$PROJECT_STASH_DIR/files" -name "*.md" | wc -l | tr -d ' ')
+        if [ "$file_count" -gt 0 ]; then
+            context+="## File Summaries ($file_count files cached)\n"
+            for f in "$PROJECT_STASH_DIR/files/"*.md; do
+                [ -f "$f" ] || continue
+                fname=$(basename "$f" .md | tr '__' '/')
+                context+="### $fname\n$(cat "$f")\n\n"
+            done
+        fi
+    fi
+fi
+
+if [ -z "$context" ]; then
+    context="TokenStash: No stash found. Run /stash-scan to index this project."
+fi
+
+full_context="<tokenstash>\n${context}\n</tokenstash>"
+escaped=$(escape_for_json "$full_context")
+
+cat <<JSONEOF
+{
+  "additional_context": "${escaped}",
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "${escaped}"
+  }
+}
+JSONEOF
+
+exit 0
+```
+</CodeGroup>
+
+<Note>
+**Why synchronous?** SessionStart runs **before** Claude processes your first message, ensuring the stash context is available from the very beginning of the session.
+</Note>
+
+## PostToolUse Hook
+
+The PostToolUse hook runs **asynchronously** after you use the `Write` or `Edit` tools. It reminds Claude to update the file summary.
+
+### What It Does
+
+1. **Monitors file edits:**
+   - Triggers only on `Write` and `Edit` tool calls
+   - Extracts file path from tool input
+
+2. **Injects reminder:**
+   - Adds a `<tokenstash-reminder>` tag to context
+   - Prompts Claude to run `tokenstash:auto-update` skill
+   - Keeps summaries fresh as you code
+
+### Full Implementation
+
+<CodeGroup>
+```bash hooks/post-tool-use
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Read JSON payload from stdin
+input=$(cat)
+
+# Extract tool name and file path using python3 (available everywhere)
+tool_name=$(echo "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
+file_path=$(echo "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# Only act on Write and Edit tool calls with a file path
+if [[ "$tool_name" != "Write" && "$tool_name" != "Edit" ]] || [ -z "$file_path" ]; then
+    cat << 'JSONEOF'
+{"no_op": true}
+JSONEOF
+    exit 0
+fi
+
+filename=$(basename "$file_path")
+reminder="<tokenstash-reminder>You just edited \`${file_path}\`. Use the tokenstash:auto-update skill to update its summary in .tokenstash/files/ now.</tokenstash-reminder>"
+escaped=$(escape_for_json "$reminder")
+
+cat << JSONEOF
+{
+  "additional_context": "${escaped}",
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUse",
+    "additionalContext": "${escaped}"
+  }
+}
+JSONEOF
+
+exit 0
+```
+</CodeGroup>
+
+<Info>
+**Why asynchronous?** PostToolUse runs **after** the tool completes, so it doesn't block your workflow. The reminder appears in Claude's next turn.
+</Info>
+
+## Hook Execution Flow
+
+<Steps>
+  <Step title="Hook Trigger">
+    Claude Code detects a SessionStart or PostToolUse event
+  </Step>
+  <Step title="Run Wrapper">
+    Claude Code calls `run-hook.cmd` (cross-platform polyglot wrapper)
+  </Step>
+  <Step title="Execute Script">
+    Wrapper invokes the appropriate bash script (`session-start` or `post-tool-use`)
+  </Step>
+  <Step title="Build Context">
+    Script reads stash files, builds context, returns JSON
+  </Step>
+  <Step title="Inject Context">
+    Claude Code adds `additional_context` to Claude's conversation context
+  </Step>
+</Steps>
+
+## Cross-Platform Wrapper
+
+The `run-hook.cmd` wrapper ensures hooks work on Windows, macOS, and Linux:
+
+```bash hooks/run-hook.cmd
+: << 'CMDBLOCK'
+@echo off
+REM Cross-platform polyglot wrapper for hook scripts.
+set "HOOK_DIR=%~dp0"
+if exist "C:\Program Files\Git\bin\bash.exe" (
+    "C:\Program Files\Git\bin\bash.exe" "%HOOK_DIR%%~1" %2 %3 %4 %5
+    exit /b %ERRORLEVEL%
+)
+where bash >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    bash "%HOOK_DIR%%~1" %2 %3 %4 %5
+    exit /b %ERRORLEVEL%
+)
+exit /b 0
+CMDBLOCK
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_NAME="$1"
+shift
+exec bash "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"
+```
+
+<Note>
+This file is both a valid Windows `.cmd` batch file and a valid bash script. The heredoc trick makes it cross-platform.
+</Note>
+
+## Debugging Hooks
+
+Hooks write to stdout in JSON format. To test them manually:
+
+```bash
+# Test SessionStart hook
+bash hooks/session-start
+
+# Test PostToolUse hook with sample input
+echo '{"tool_name":"Write","tool_input":{"file_path":"src/utils.ts"}}' | bash hooks/post-tool-use
+```
+
+See `hooks/tests/` for integration tests.
