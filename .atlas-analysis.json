@@ -1,0 +1,78 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "TokenStash",
+  "projectDescription": "A Claude Code plugin that caches project context locally so Claude starts every session already knowing your codebase.",
+  "theme": "palm",
+  "primaryColor": "#7C3AED",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/how-it-works",
+              "guides/stash-structure",
+              "guides/workflow",
+              "guides/best-practices"
+            ]
+          },
+          {
+            "group": "Commands",
+            "pages": [
+              "commands/overview",
+              "commands/stash-save",
+              "commands/stash-scan",
+              "commands/stash-clear"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/hooks",
+              "advanced/skills",
+              "advanced/global-vs-project"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "help/troubleshooting",
+              "help/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automatic context caching at session start",
+    "Auto-updating file summaries after edits",
+    "Full repository scanning and indexing",
+    "Decision and architecture logging",
+    "Global and project-level stash hierarchy",
+    "Silent background updates via hooks"
+  ],
+  "publicApiSurface": [
+    "/stash-save",
+    "/stash-scan",
+    "/stash-scan --force",
+    "/stash-clear",
+    "tokenstash:save skill",
+    "tokenstash:scan skill",
+    "tokenstash:auto-update skill",
+    "SessionStart hook",
+    "PostToolUse hook"
+  ]
+}
